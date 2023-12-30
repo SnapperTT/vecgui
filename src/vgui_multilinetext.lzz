@@ -1,0 +1,959 @@
+#ifdef STTR_ENABLED
+	#insert "sttr_compat_macros.hpp"
+#endif
+
+/// MultilineText - a text element that fits text to a certian width
+/// Is built to handle LOTs of text (as in 10,000's of rows of text)
+class Vgui_MultilineText : public Vgui_Widget {
+public:
+	////////////////////////////////////////////////////////////////////////////////////////////
+	struct textChunk {
+		// Purpose: a text row cache. When there are many thousands of rows of text and the
+		// MultilineText element is resized, recalcualting the length of all the rows of text
+		// (via vecgui::breakString) is VERY expensive.
+		// With these, only on-screen chunks have their sizes updated on screen resize
+		VGUI_VECTOR<sttfont_formatted_text> rawRows;	// mText tokenised on newlines. May or may not be more than one line long
+		VGUI_VECTOR<Vgui_TextSubWidget*> mLines; 		// cache of drawn lines. These are always rendered as one line thick and are trimmed to fit the text box
+		VGUI_VECTOR<vecgui::uintQuad> linesToRows;		// 
+		//unsigned int rowIndex;
+		
+		VGUI_COORD genWidth, genHeight; // width/height of this when the rows were generated
+		VGUI_COORD ySize, yPos;			// The "size" of this in the element. If the element is resized and this is dirty then it may be wrong
+										// and the elements below it may need to be moved
+		sttfont_formatted_text combinedRows;
+		
+		const static unsigned int N_ROWS_PER_CHUNK = 4; /// Really large values (400) result in a minor slowdown
+		
+		textChunk() : genWidth(0), genHeight(0), ySize(0), yPos(0) {}
+		virtual ~textChunk () {
+			clearLines();
+			}
+			
+		void reassemble() {
+			//bool first = true;
+			combinedRows.clear();
+			bool first = true;			
+			for (const sttfont_formatted_text & sft : rawRows) {
+				if (first)
+					first = false;
+				else
+					combinedRows << "\n";
+				combinedRows.append(sft);
+				}
+			combinedRows.consolidateSegments();
+			}
+			
+		void clearLines() {
+			for (unsigned int i = 0; i < mLines.size(); ++i)
+				VGUI_DEL(mLines[i]);
+			mLines.clear();
+			linesToRows.clear();
+			}
+			
+		void clearLineCache() {
+			//std::cout << "Cleared " << mLines.size() << " lines of prerendered text. " << yPos  << std::endl;
+			for (unsigned int i = 0; i < mLines.size(); ++i)
+				mLines[i]->clearCache(); // Remove offscreen lines of text from memory
+			}
+			
+		void breakRow(const unsigned int rowIndex, const sttfont_formatted_text & row, const VGUI_COORD maxWidth) {
+			// Takes a row and generates lines from it, appending to end of lines array
+			VGUI_VECTOR<sttfont_formatted_text> out;
+			unsigned int linesToRowsStart = linesToRows.size();
+			Vgui_ContextI::aContext->breakString(row, out, VGUI_MAX(10, maxWidth), true, &linesToRows);
+			
+			
+			for (unsigned int i = 0; i < out.size(); ++i) {
+				linesToRows[i+linesToRowsStart].first = rowIndex;
+				
+				Vgui_TextSubWidget * tsw = VGUI_NEW(Vgui_TextSubWidget);
+				if (i == 0) tsw->startsWithNewLine = true;
+				tsw->assign(std::move(out[i]));
+				mLines.push_back(tsw);
+				}
+			}
+			
+		void regenerate(const VGUI_COORD maxWidth) {
+			//std::cout << "REGENERATING!! " << maxWidth << " " << rawRows.size()  << std::endl;
+			clearLines();
+			mLines.reserve(rawRows.size());
+			for (unsigned int i = 0; i < rawRows.size(); ++i)  {
+				const sttfont_formatted_text & sft = rawRows[i];
+				breakRow(i, sft, maxWidth);
+				}
+				
+				
+			genWidth = maxWidth;
+			ySize = (mLines.size()) * Vgui_ContextI::aContext->getTextLineHeight();
+			}
+			
+		void dumpLinesToStdOut () {
+			std::cout << std::endl  << "TextChunk: " << this << std::endl;
+			for (unsigned int i = 0; i < mLines.size(); ++i) {
+				const vecgui::uintQuad & ltr = linesToRows[i];
+				std::cout << "\tmLine: ("<<mLines[i]->text.size()<<") [" << mLines[i]->text.getStringTruncated(180) << "]" << std::endl;
+				std::cout << "\t\tRawRow: " << ltr.first << " [" << rawRows[ltr.first].getStringTruncated(180) <<"]"<< std::endl;
+				std::cout << "\t\tsub: (" << ltr.second << ", " << ltr.third << ", " << ltr.forth << ") [" << rawRows[ltr.first].extract(ltr.second, ltr.third+ltr.forth).getStringTruncated(180) << "] "<< std::endl;
+				}
+			}
+		
+		unsigned int getSeekPosition(const unsigned int targetLine, const unsigned int targetPos) const {
+			unsigned int workingPos = 0;
+			for (unsigned int i = 0; i < linesToRows.size(); ++i) {
+				if (i == targetLine) {
+					//std::cout << "getSeekPosition " << targetLine << ", "<< targetPos << " --> " << (workingPos + linesToRows[i].forth + targetPos) << " (" << workingPos << ", " << linesToRows[i].forth << ", " << targetPos << ")"<< std::endl;
+					return workingPos + linesToRows[i].forth + targetPos;
+					}
+				int rowJump = i < linesToRows.size()-1 ? linesToRows[i+1].first - linesToRows[i].first : 0;
+				if (i == linesToRows.size()-1) rowJump = 1;
+				
+				workingPos += linesToRows[i].third + linesToRows[i].forth + rowJump;
+				}
+			return -1;
+			}
+			
+		void getLineAndPosFromSeekPosition(const unsigned int seekPos, unsigned int & lineOut, unsigned int & posOut) const {
+			lineOut = -1;
+			posOut = -1;
+			unsigned int workingPos = 0;
+			for (unsigned int i = 0; i < linesToRows.size(); ++i) {
+				int rowJump = i < linesToRows.size()-1 ? linesToRows[i+1].first - linesToRows[i].first : 0;
+				if (i == linesToRows.size()-1) rowJump = 1;
+				
+				const unsigned int segLen = linesToRows[i].third + linesToRows[i].forth + rowJump;
+				//std::cout << "CHECKING " << seekPos << ", line/row: " << i << ", " << linesToRows[i].first << ", workingPos: " << workingPos << ", pos+segLen: " << (workingPos + segLen) << ", segLen: " << segLen<< ", ltr.3: " << linesToRows[i].third << ", rowJump: "<< rowJump << std::endl;
+				if (seekPos >= workingPos && seekPos < workingPos + segLen) {
+					lineOut = i;
+					posOut = seekPos - workingPos;
+					return;
+					}
+				workingPos += segLen;
+				}
+			}
+			
+		void insertText(unsigned int & lineIndex, unsigned int & linePos, sttfont_formatted_text_MS text, const VGUI_COORD regenWidth) {
+			if (lineIndex >= linesToRows.size()) return;
+			const vecgui::uintQuad & ltr = linesToRows[lineIndex];
+			const unsigned int rowIndex = ltr.first;
+			const unsigned int localPos = ltr.second + linePos;
+			if (rowIndex >= rawRows.size()) return;
+			// Get the insert location on the row
+			
+			//std::cout << "Inserting ["  << text.getString() << "] into row [" << rawRows[rowIndex].getStringTruncated(64) << "], line: ("<< ltr.second<< ", " << ltr.third<<")[" << rawRows[rowIndex].extract(ltr.second, ltr.third).getStringTruncated(64) << "] at position " << localPos << std::endl;
+
+			
+			unsigned int seekStart = getSeekPosition(lineIndex, linePos) + text.size();
+			rawRows[rowIndex].insert(localPos, std::move(text));
+			
+			// Retokenise on newlines
+			VGUI_VECTOR<sttfont_formatted_text> tok; 
+			rawRows[rowIndex].tokenise(tok, '\n', false);
+			if (tok.size() > 1) {
+				//endOfRowDetection = 1 + tok.size();
+				rawRows[rowIndex] = tok[0];
+				rawRows.insert(rawRows.begin() + rowIndex + 1, std::make_move_iterator(tok.begin()+1), std::make_move_iterator(tok.end()));
+				}
+				
+			// Rebreak and find new line index & position
+			reassembleAndRegenerate(regenWidth);
+			getLineAndPosFromSeekPosition(seekStart, lineIndex, linePos);
+			//linePos+=endOfRowDetection;
+			}
+			
+		void backspace(unsigned int & chunkIndex, unsigned int & lineIndex, unsigned int & linePos, textChunk * tcBefore, const VGUI_COORD regenWidth) {
+			// Removes 1 character back
+			if (lineIndex >= linesToRows.size()) return;
+			const vecgui::uintQuad & ltr = linesToRows[lineIndex];
+			const unsigned int rowIndex = ltr.first;
+			const unsigned int localPos = ltr.second + linePos;
+			if (rowIndex >= rawRows.size()) return;
+			
+			int deleted = 1;
+			
+			if (localPos == 0 && rowIndex == 0) {
+				// Removing newline at begining of chunk
+				// Merge first line with tcBefore's last line
+				if (!tcBefore) return;
+				if (!tcBefore->rawRows.size()) return;
+				if (tcBefore->mLines.size()) tcBefore->regenerate(regenWidth);
+									
+				tcBefore->rawRows[tcBefore->rawRows.size()-1].append(std::move(rawRows[0]));
+				rawRows.erase(rawRows.begin()+0);
+				
+				reassembleAndRegenerate(regenWidth);
+				tcBefore->reassembleAndRegenerate(regenWidth);
+				
+				chunkIndex--;
+				lineIndex = tcBefore->mLines.size()-1;
+				linePos = tcBefore->mLines[lineIndex]->text.size();				
+				return;
+				}
+			else if (localPos) {
+				// Remove 1 character in middle of row
+				unsigned int posOut = 0;
+				unsigned int charSz = 0;
+				rawRows[rowIndex].utf8_charsizeAt(localPos-1, posOut, charSz);
+				rawRows[rowIndex].remove(posOut, charSz);
+				deleted = charSz;
+				}
+			else {
+				// Removing newline between rows. Join rows
+				rawRows[rowIndex-1].append(std::move(rawRows[rowIndex]));
+				rawRows.erase(rawRows.begin()+rowIndex);
+				}
+			const unsigned int seekStart = getSeekPosition(lineIndex, linePos);
+			reassembleAndRegenerate(regenWidth);
+			getLineAndPosFromSeekPosition(seekStart - deleted, lineIndex, linePos);
+			}
+			
+		void deleteForward(unsigned int & chunkIndex, unsigned int & lineIndex, unsigned int & linePos, textChunk * tcAfter, const VGUI_COORD regenWidth) {
+			// Removes 1 character forward
+			if (lineIndex >= linesToRows.size()) return;
+			const vecgui::uintQuad & ltr = linesToRows[lineIndex];
+			const unsigned int rowIndex = ltr.first;
+			const unsigned int localPos = ltr.second + linePos;
+			if (rowIndex >= rawRows.size()) return;
+						
+			const unsigned int seekStart = getSeekPosition(lineIndex, linePos);
+			if (localPos == rawRows[rowIndex].size()) {
+				// Removing newline at end of row
+				if (rowIndex == rawRows.size()-1) {
+					// Merge first line with tcAfter's first line
+					if (!tcAfter) return;
+					if (!tcAfter->rawRows.size()) return;
+					if (tcAfter->mLines.size()) tcAfter->regenerate(regenWidth);
+					
+					rawRows[rowIndex].append(std::move(tcAfter->rawRows[0]));
+					tcAfter->rawRows.erase(tcAfter->rawRows.begin()+0);
+					
+					tcAfter->reassembleAndRegenerate(regenWidth);
+					}
+				else {
+					// Removing newline between rows. Join rows
+					rawRows[rowIndex].append(std::move(rawRows[rowIndex+1]));
+					rawRows.erase(rawRows.begin()+rowIndex+1);
+					}
+				}
+			else {
+				// Remove 1 character in middle of row
+				unsigned int posOut = 0;
+				unsigned int charSz = 0;
+				rawRows[rowIndex].utf8_charsizeAt(localPos, posOut, charSz);
+				rawRows[rowIndex].remove(posOut, charSz);
+				}
+				
+			reassembleAndRegenerate(regenWidth);
+			getLineAndPosFromSeekPosition(seekStart, lineIndex, linePos);
+			}
+			
+		void addLine(const sttfont_formatted_text & row, const VGUI_COORD maxWidth, Vgui_MultilineText * ctr) {
+			// Adds a singualr line
+			bool isGenerated = mLines.size() && rawRows.size();
+			rawRows.push_back(row);
+			if (isGenerated) {
+				breakRow(rawRows.size()-1, rawRows[rawRows.size()-1], maxWidth);
+				ySize = (mLines.size()) * Vgui_ContextI::aContext->getTextLineHeight();
+				ctr->markDirty();
+				}
+			else
+				ySize += Vgui_ContextI::aContext->getTextLineHeight();
+			}
+			
+		void reassembleAndRegenerate(const VGUI_COORD maxWidth) {
+			// Regenerates this. Sets the 
+			bool hasRows = rawRows.size();
+			reassemble();
+			clearLines();
+			rawRows.clear();
+			if (hasRows) combinedRows.tokenise(rawRows, '\n', false);
+			regenerate(maxWidth);
+			}
+			
+		bool needsRegeneration(const VGUI_COORD maxWidth) {
+			if (!VGUI_FUZZY_ZERO(maxWidth - genWidth)) return true;
+			return rawRows.size() && !mLines.size();
+			}
+			
+		void pollToRegenerate(const VGUI_COORD maxWidth) {
+			if (needsRegeneration(maxWidth))
+				regenerate(maxWidth);
+			}
+		};
+	////////////////////////////////////////////////////////////////////////////////////////////
+		
+	VGUI_VECTOR<textChunk*> mTextChunks;
+	
+private:
+	unsigned int iChunkStartHint; // Internal var for draw - to help maintain cache
+	unsigned int iChunkEndHint;
+	VGUI_COORD yScrollLast; // Used to detect if scrolling up or down
+	
+	unsigned int caretChunkIndex;
+	int caretRow;
+	int caretRowPosition;
+
+public:
+	Vgui_MultilineText() : Vgui_Widget() {
+		text.isDummy = true;
+		isAutoscrolling = true;
+		isAutoscrollingActive = true;
+		iChunkStartHint = 0;
+		iChunkEndHint = 0;
+		
+		caretChunkIndex = 0;
+		caretRow = 0;
+		caretRowPosition = 0;
+		
+		setStyle(wrangleDefaultSkin()->MultilineText);
+		}
+	
+	virtual Vgui_Widget * clone() const {
+		Vgui_MultilineText * r = VGUI_NEW(Vgui_MultilineText);
+		r->mStyleWrap.mStyle.clearPrimatives();
+	
+		*r = *this;
+		
+		r->iChunkStartHint = 0;
+		r->iChunkEndHint = 0;
+		
+		r->caretChunkIndex = 0;
+		r->caretRow = 0;
+		r->caretRowPosition = 0;
+		r->mTextChunks.clear();
+		return baseCloneWorker(r);
+		}
+		
+	virtual ~Vgui_MultilineText () {
+		clearCache();
+		}
+		
+	void clearCache () {
+		/// "Resets" this. Must be called if the text is changed via this->text = foo
+		for (textChunk * tc : mTextChunks)
+			VGUI_DEL(tc);
+		mTextChunks.clear();
+		iChunkStartHint = 0;
+		iChunkEndHint = 0;
+		}
+	
+	#ifdef STTR_ENABLED
+	static void sttr_register() {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_Widget,Vgui_MultilineText>("Vgui_MultilineText")
+			.STTR_REG(Vgui_MultilineText,addLine)
+			.STTR_REG(Vgui_MultilineText,upcast)
+			.STTR_REG(Vgui_MultilineText,upcastC)
+		.endClass();
+		//std::cout << "sttr_register Vgui_MultilineText" <<  std::endl;
+		//exit(1);
+		}
+	STTR_CLASS_SIG(Vgui_MultilineText)
+	STTR_AUTO_UPCAST(Vgui_Widget, Vgui_MultilineText)
+	#endif
+	
+	void getStylePadding(VGUI_COORD & _innerPaddingT, VGUI_COORD & _innerPaddingB, VGUI_COORD & _innerPaddingL, VGUI_COORD & _innerPaddingR) const {
+		wrangleStyle()->getInnerPadding( *this, _innerPaddingT, _innerPaddingB, _innerPaddingL, _innerPaddingR);
+		}
+		
+	textChunk * getOrGenActiveChunk() {
+		if (!mTextChunks.size()) {
+			textChunk * TC = VGUI_NEW(textChunk);
+			mTextChunks.push_back(TC);
+			}
+		
+		return mTextChunks[mTextChunks.size()-1];
+		}
+
+	void addLine (const sttfont_formatted_text & str) {
+		text.append("\n");
+		text.append_formatted_text(str);
+				
+		textChunk * TC = getOrGenActiveChunk();
+		// only generate if visible!
+		TC->addLine(str, getRowWidth(), this);
+		
+		if (TC->rawRows.size() > textChunk::N_ROWS_PER_CHUNK) {
+			// Create blank chunk
+			textChunk * TC_Last = TC;
+			TC = VGUI_NEW(textChunk);
+			TC->yPos = TC_Last ? TC_Last->yPos + TC_Last->ySize : 0;
+			mTextChunks.push_back(TC);
+			}
+		}
+		
+	void doAutoscroll(const VGUI_COORD extraPadding) {
+		textChunk * TC = getOrGenActiveChunk();
+		yScrollMax = TC->yPos + TC->ySize + extraPadding;
+		//yScrollMax = (mLines.size()+1) * Vgui_ContextI::aContext->getTextLineHeight();
+		
+		if (isAutoscrolling && isAutoscrollingActive) {
+			yScroll = yScrollMax - drawHeight;
+			if (yScroll < 0) yScroll = 0;
+			}
+		}
+	
+	void chunkify(const VGUI_COORD chunkWidth) {
+		// takes @text, tokenises it by newlines and genereates chunks
+		for (textChunk * TC : mTextChunks)
+			VGUI_DEL(TC);
+		mTextChunks.clear();
+		
+		VGUI_VECTOR<sttfont_formatted_text> mTok;
+		text.text.tokenise(mTok, '\n', false);
+		
+		// For each blob create a chunk
+		mTextChunks.reserve(mTok.size() / textChunk::N_ROWS_PER_CHUNK);
+		textChunk * TC = VGUI_NEW(textChunk);
+		mTextChunks.push_back(TC);
+		for (unsigned int i = 0; i < mTok.size(); ++i) {
+			// Uncomment to test this - add row numbers to each row
+			//sttfont_formatted_text foo(vecgui::itos(mTextChunks.size()) + "," + vecgui::itos(i) + ": ");
+			//foo.append(mTok[i]); 
+			//mTok[i] = std::move(foo);
+			TC->rawRows.push_back(std::move(mTok[i]));
+			if (TC->rawRows.size() > textChunk::N_ROWS_PER_CHUNK) {
+				TC = VGUI_NEW(textChunk);
+				mTextChunks.push_back(TC);
+				}
+			}
+			
+		// For each chunk, guesstimate the y-size
+		textChunk * TC_Last = NULL;
+		for (textChunk * TC : mTextChunks) {
+			TC->ySize = TC->rawRows.size()*Vgui_ContextI::aContext->getTextLineHeight();
+			TC->yPos = TC_Last ? TC_Last->yPos + TC_Last->ySize : 0;
+			TC_Last = TC;
+			}
+			
+		markDirty();
+		}
+		
+	const VGUI_COORD getRowWidth () {
+		VGUI_COORD ipt, ipb, ipl, ipr;
+		wrangleStyle()->getInnerPadding(*this, ipt, ipb, ipl, ipr);
+		return getRowWidth(ipl, ipr);
+		}
+		
+	const VGUI_COORD getRowWidth (const VGUI_COORD ipl, const VGUI_COORD ipr) {
+		const VGUI_COORD chunkWidth = VGUI_MAX(10, drawWidth - ipl - ipr);
+		return chunkWidth;
+		}
+	
+	void generateLinesFromText () {
+		// Needs to be called whenever this is resized, or the text is reset
+		chunkify(getRowWidth());
+		}
+		
+	void setCaretPosBasedOnPos(VGUI_COORD mouseX, VGUI_COORD mouseY) {
+		// Do a binary search for the closest location
+
+		VGUI_COORD ipeL, ipeR, ipeT, ipeB;
+		getStylePadding( ipeT, ipeB, ipeL, ipeR);
+		
+		// mouseTextRelY
+		unsigned int chunkI = findFirstChunkInRange();
+		if (chunkI >= mTextChunks.size()) {
+			// Set to end
+			caretChunkIndex = mTextChunks.size()-1;
+			caretRow = -1;
+			return;
+			}
+			
+		textChunk * tc = mTextChunks[chunkI];
+		
+		//tc->yPos
+		int rawLine = (mouseY - drawY - ipeT + yScroll - tc->yPos) / Vgui_ContextI::aContext->getTextLineHeight();
+		// Search for the line
+		int localLine = rawLine;
+		
+		while (tc) {
+			if (localLine < int(VGUI_MAX(tc->mLines.size(), tc->rawRows.size()))) {
+				caretChunkIndex = chunkI;
+				caretRow = localLine;
+				break;
+				}
+			else {
+				localLine -= tc->mLines.size();
+				chunkI++;
+				if (chunkI < mTextChunks.size())
+					tc = mTextChunks[chunkI];
+				else
+					tc = NULL;
+				}
+			}
+			
+		if (!tc) {
+			// Set to end
+			caretChunkIndex = mTextChunks.size()-1;
+			caretRow = -1;
+			return;
+			}
+		
+		VGUI_COORD textX = ipeL + drawX - xScroll;
+		if (caretRow >= 0 && caretRow < int(tc->mLines.size())) {
+			caretRowPosition = Vgui_ContextI::aContext->getTextCaretPos(tc->mLines[caretRow]->text, mouseX - textX, 0);
+			if (mouseX < textX)
+				caretRowPosition = 0;
+			if (caretRowPosition < 0)
+				caretRowPosition = tc->mLines[caretRow]->text.size();
+			}
+		else {
+			caretRowPosition = -1;
+			}
+		}
+		
+	void pollMouseState(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask) {
+		scrollbar_pollMouseState(mouseX, mouseY, buttonMask);
+		}
+
+	bool processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		if (!buttonMask) return false;
+		bool consumed = scrollbar_processMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		if (consumed) return consumed;
+		return textAreaBehaviour_processMouseEvent(mouseX, mouseY, buttonMask, isDown, true);
+		}
+		
+	
+	textChunk * fetchChunkBeingEditied() {
+		if (caretChunkIndex >= 0 && caretChunkIndex < mTextChunks.size())
+			return mTextChunks[caretChunkIndex];
+		return NULL;
+		}
+		
+protected:
+	void moveCarretWorker(bool MOVE_UP, bool MOVE_DOWN, bool MOVE_LEFT, bool MOVE_RIGHT, Vgui_TextSubWidget *& activeLine, textChunk *& TC, const VGUI_COORD activeLineY, const VGUI_COORD targetLineYAtBottom, const VGUI_COORD rowSz) {
+		if (MOVE_UP || MOVE_LEFT) {
+			if (caretRowPosition && MOVE_LEFT) {
+				unsigned int pos, size;
+				sttfont_lookupHint hint; hint.writeOut = true;
+				activeLine->text.utf8_charsizeAt(caretRowPosition-1, pos, size, &hint);
+				caretRowPosition = pos;
+				}
+			else {
+				// move up 1 line
+				if (caretRow > 0) {
+					caretRow--;
+					if (MOVE_UP)
+						caretRowPosition = VGUI_MIN(int(TC->mLines[caretRow]->text.size()), caretRowPosition);
+					else
+						caretRowPosition = TC->mLines[caretRow]->text.size();
+					}
+				else if (caretChunkIndex > 0) {
+					caretChunkIndex--;
+					TC = mTextChunks[caretChunkIndex];
+					if (!TC->mLines.size())
+						TC->regenerate(getRowWidth());
+					
+					caretRow = TC->mLines.size()-1;
+					if (caretRow >= 0 && caretRow < int(TC->mLines.size()))
+						caretRowPosition = TC->mLines[caretRow]->text.size();
+					}
+				if (activeLineY <= yScroll)
+					yScroll -= rowSz;
+					
+				if (yScroll > yScrollMax-drawHeight) yScroll = yScrollMax-drawHeight;
+				if (yScroll < 0) yScroll = 0;
+				}
+			}
+		
+		if (MOVE_DOWN || MOVE_RIGHT) {
+			if (caretRowPosition < int(activeLine->text.size()) && MOVE_RIGHT) {
+				unsigned int pos, size;
+				sttfont_lookupHint hint;
+				activeLine->text.utf8_charsizeAt(caretRowPosition, pos, size, &hint);
+				caretRowPosition = pos + size;
+				}
+			else {
+				// move down 1 line
+				bool moved = false;
+				if (caretRow >= int(TC->mLines.size())-1) {
+					if (caretChunkIndex < mTextChunks.size() -1) {
+						caretRow = 0;
+						caretChunkIndex++;
+						moved = true;
+						TC = mTextChunks[caretChunkIndex];
+						if (!TC->mLines.size())
+							TC->regenerate(getRowWidth());
+						}
+					}
+				else {
+					caretRow++;
+					moved = true;
+					}
+				if (MOVE_DOWN && caretRow < int(TC->mLines.size()))
+					caretRowPosition = VGUI_MIN(int(TC->mLines[caretRow]->text.size()), caretRowPosition);
+				else if (moved)
+					caretRowPosition = 0;
+					
+				if (yScroll >= targetLineYAtBottom)
+					yScroll = targetLineYAtBottom + rowSz;
+
+				if (yScroll > yScrollMax-drawHeight) yScroll = yScrollMax-drawHeight;
+				if (yScroll < 0) yScroll = 0;
+				}
+			}
+		}
+		
+	void realignTextChunks(unsigned int chunkStart) {
+		if (chunkStart >= mTextChunks.size()) return;
+		
+		for (unsigned int i = chunkStart; i < mTextChunks.size(); ++i ) {
+			if (!mTextChunks[i]->rawRows.size()) {
+				VGUI_DEL(mTextChunks[i]);
+				mTextChunks.erase(mTextChunks.begin() + i);
+				if (caretChunkIndex >= i) caretChunkIndex--;
+				--i;
+				continue;
+				}
+			if (mTextChunks[i]->rawRows.size() > textChunk::N_ROWS_PER_CHUNK*1.5) {
+				unsigned int split = textChunk::N_ROWS_PER_CHUNK;
+				textChunk * tcNew = VGUI_NEW(textChunk);
+				
+				tcNew->rawRows = VGUI_VECTOR<sttfont_formatted_text>(std::make_move_iterator(mTextChunks[i]->rawRows.begin() + split),
+																	std::make_move_iterator(mTextChunks[i]->rawRows.end()));
+																	
+																// Mlines is tricky - first linesToRows that	
+				unsigned int split2 = -1;
+				
+				for (unsigned int j = 0; j < mTextChunks[i]->linesToRows.size(); ++j) {
+					if (mTextChunks[i]->linesToRows[j].first == split) {
+						split2 = j;
+						break;
+						}
+					}
+				
+				
+				tcNew->mLines = VGUI_VECTOR<Vgui_TextSubWidget*>(std::make_move_iterator(mTextChunks[i]->mLines.begin() + split),
+																	std::make_move_iterator(mTextChunks[i]->mLines.end()));
+				tcNew->linesToRows = VGUI_VECTOR<vecgui::uintQuad>(std::make_move_iterator(mTextChunks[i]->linesToRows.begin() + split),
+																	std::make_move_iterator(mTextChunks[i]->linesToRows.end()));
+																	
+				mTextChunks[i]->rawRows.erase(mTextChunks[i]->rawRows.begin() + split,  mTextChunks[i]->rawRows.end());
+				mTextChunks[i]->mLines.erase(mTextChunks[i]->mLines.begin() + split2,  mTextChunks[i]->mLines.end());
+				mTextChunks[i]->linesToRows.erase(mTextChunks[i]->linesToRows.begin() + split2,  mTextChunks[i]->linesToRows.end());
+				
+				tcNew->genWidth = mTextChunks[i]->genWidth;
+				tcNew->genHeight = mTextChunks[i]->genHeight;
+				
+				const VGUI_COORD rowSz = Vgui_ContextI::aContext->getTextLineHeight();
+				tcNew->ySize = tcNew->linesToRows.size()*rowSz;
+				mTextChunks[i]->ySize = mTextChunks[i]->linesToRows.size()*rowSz;
+
+				for (unsigned int j = 0; j < tcNew->linesToRows.size(); ++j)
+					tcNew->linesToRows[j].first -= split2;
+					
+				mTextChunks.insert(mTextChunks.begin()+i+1, tcNew);
+				
+				if (caretChunkIndex == i && caretRow >= int(split2)) {
+					caretChunkIndex++; caretRow-= split2;
+					}
+					
+				//mTextChunks[i]->dumpLinesToStdOut();
+				//tcNew->dumpLinesToStdOut();
+				}
+			if (i)
+				mTextChunks[i]->yPos = mTextChunks[i-1]->yPos + mTextChunks[i-1]->ySize;
+			}
+		
+		}
+		
+public:
+	
+	bool processTextInputEvent(const VGUI_STRING & string, const Vgui_TextEditEvent evType, VGUI_STRING & textOut) {
+		if (isActive) {
+			markDirty();
+		
+			const VGUI_COORD rowSz = Vgui_ContextI::aContext->getTextLineHeight();
+		
+			textChunk * TC = NULL;
+			if (caretChunkIndex >= 0 && caretChunkIndex < mTextChunks.size())
+				TC = mTextChunks[caretChunkIndex];
+			Vgui_TextSubWidget * activeLine = NULL;
+			if (TC) {
+				if (!TC->mLines.size())
+					TC->regenerate(getRowWidth());
+				if (caretRow >= 0 && caretRow <= int(TC->mLines.size())) {
+					activeLine = TC->mLines[caretRow];
+					}
+				}
+				
+			if (!(TC && activeLine)) return false; // should NOT return here
+			
+			VGUI_COORD ipeL, ipeR, ipeT, ipeB;
+			getStylePadding( ipeT, ipeB, ipeL, ipeR);
+		
+			VGUI_COORD activeLineY = TC->yPos + caretRow*rowSz + ipeT;
+			VGUI_COORD targetLineYAtBottom = activeLineY - drawHeight + rowSz + ipeB;
+			
+			int chunkStart = VGUI_MAX(int(caretChunkIndex)-2, 0);
+		
+		
+			// If is offscreen, set scroll to make this active
+			if (activeLineY > yScroll + drawHeight) { // TC is below
+				yScroll = targetLineYAtBottom;
+				isAutoscrollingActive = false;
+				}
+			else if (activeLineY < yScroll) { // TC is above
+				yScroll = activeLineY;
+				isAutoscrollingActive = false;
+				}
+			if (yScroll > yScrollMax-drawHeight) yScroll = yScrollMax-drawHeight;
+			if (yScroll < 0) yScroll = 0;
+			
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_INSERT) {
+				sttfont_formatted_text insertStr(string);
+				unsigned int ucaretRow = caretRow;
+				unsigned int ucaretRowPosition = caretRowPosition;
+				TC->insertText(ucaretRow, ucaretRowPosition, std::move(insertStr), getRowWidth());
+				caretRow = ucaretRow;
+				caretRowPosition = ucaretRowPosition;
+				realignTextChunks(chunkStart);
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_BACKSPACE) {
+				unsigned int ucaretChunkIndex = caretChunkIndex;
+				unsigned int ucaretRow = caretRow;
+				unsigned int ucaretRowPosition = caretRowPosition;
+				TC->backspace(ucaretChunkIndex, ucaretRow, ucaretRowPosition, ucaretChunkIndex > 0 ? mTextChunks[ucaretChunkIndex-1] : NULL, getRowWidth());
+				caretChunkIndex = ucaretChunkIndex;
+				caretRow = ucaretRow;
+				caretRowPosition = ucaretRowPosition;
+				realignTextChunks(chunkStart);
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_DELETE) {
+				unsigned int ucaretChunkIndex = caretChunkIndex;
+				unsigned int ucaretRow = caretRow;
+				unsigned int ucaretRowPosition = caretRowPosition;
+				TC->deleteForward(ucaretChunkIndex, ucaretRow, ucaretRowPosition, ucaretChunkIndex+1 < mTextChunks.size() ? mTextChunks[ucaretChunkIndex+1] : NULL, getRowWidth());
+				caretChunkIndex = ucaretChunkIndex;
+				caretRow = ucaretRow;
+				caretRowPosition = ucaretRowPosition;
+				realignTextChunks(chunkStart);
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_LEFT) {
+				moveCarretWorker(false, false, true, false, activeLine, TC, activeLineY, targetLineYAtBottom, rowSz);
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_RIGHT) {
+				moveCarretWorker(false, false, false, true, activeLine, TC, activeLineY, targetLineYAtBottom, rowSz);
+				return true;
+				} 
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_UP) {
+				moveCarretWorker(true, false, false, false, activeLine, TC, activeLineY, targetLineYAtBottom, rowSz);
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_DOWN) {
+				moveCarretWorker(false, true, false, false, activeLine, TC, activeLineY, targetLineYAtBottom, rowSz);
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_COPY) {
+				// rebuild text and copy
+				sttfont_formatted_text r;
+				bool first = true;
+				for (textChunk * TC : mTextChunks) {
+					if (first)
+						first = false;
+					else
+						r << "\n";
+					TC->reassemble();
+					r.append(TC->combinedRows);
+					}
+				textOut = r.getString();
+				return true;
+				}
+			}
+		return false;
+		}
+
+protected:
+	unsigned int findFirstChunkInRange_findMidTextChunk() {
+		// Does a binary search for a textChunk that is nearest to yScroll
+		unsigned int max = mTextChunks.size();
+		unsigned int min = 0;
+		unsigned int mid = (max + min)/2;
+		
+		while (max > (min+1)) {
+			mid = (max + min)/2;
+			if (mTextChunks[mid]->yPos <= yScroll) {
+				// Jump forward
+				min = mid; continue;
+				}
+			else {
+				// Jump forward
+				max = mid; continue;
+				}
+			}
+		return mid;
+		}
+public:
+	unsigned int findFirstChunkInRange() {
+		// Finds the first chunk that is visible
+		// Note: don't set iChunkStartHint as it will mess with which
+		// chunks are visible/which ones are not visible
+		
+		// Find the chunk
+		unsigned int startIndex = 0;
+		if (yScroll != 0) {
+			startIndex = iChunkStartHint;
+			}
+		if (startIndex > mTextChunks.size())
+			startIndex = mTextChunks.size()-1;
+		if (startIndex < 0) startIndex = 0;
+			
+		// Find the start chunk
+		unsigned int _iChunkStartHint = -1;
+		redo:
+		// First hint - check -5/+5 of the current value to prevent a binary search
+		unsigned int stopII = VGUI_MIN(startIndex + 5, mTextChunks.size());
+		unsigned int startII = VGUI_MAX(int(startIndex) - 5, 0);
+		for (unsigned int ii = startII; ii < stopII; ++ii) {
+			if (mTextChunks[ii]->yPos <= yScroll && mTextChunks[ii]->yPos + mTextChunks[ii]->ySize > yScroll) {
+				_iChunkStartHint = ii;
+				break;
+				}
+			}
+			
+		// If not found, do a binary search and check again
+		if (_iChunkStartHint > mTextChunks.size()) {
+			startIndex = findFirstChunkInRange_findMidTextChunk();
+			_iChunkStartHint = 0;	// Prevent a relookup here - default to rendering from the start
+			goto redo;
+			}
+		return _iChunkStartHint;
+		}
+		
+	void draw (const bool forceDraw) {
+			
+		//uint64_t START = SDL_GetPerformanceCounter();
+		const bool genRq = (!text.text.isEmpty() && !mTextChunks.size());
+		if (genRq) {
+			generateLinesFromText();
+			markDirty();
+			}
+			
+		
+		VGUI_COORD ipeL, ipeR, ipeT, ipeB;
+		getStylePadding( ipeT, ipeB, ipeL, ipeR);
+		const VGUI_COORD rowSz = Vgui_ContextI::aContext->getTextLineHeight();
+		
+		
+		const unsigned int iChunkStartLast = iChunkStartHint;
+		const unsigned int iChunkEndLast   = iChunkEndHint;
+		
+		iChunkStartHint = findFirstChunkInRange();
+		
+		// Itter forward, find end and regenerate if required
+		const VGUI_COORD chunkWidth = getRowWidth(ipeL, ipeR); 
+		bool bumpAll = false;
+		iChunkEndHint = mTextChunks.size();
+		for (unsigned int ii = iChunkStartHint; ii < mTextChunks.size(); ++ii) {
+			// poll to regenerate
+			if (mTextChunks[ii]->yPos < yScroll + drawHeight) {
+				if (mTextChunks[ii]->needsRegeneration(chunkWidth)) {
+					bumpAll = true;
+					}
+				}
+			else {
+				iChunkEndHint = ii;
+				break;
+				}
+			}
+		if (iChunkEndHint <= iChunkStartHint) iChunkEndHint = iChunkStartHint+1;
+		
+		//uint64_t LAST = SDL_GetPerformanceCounter();
+		int nRowsRegenerated = 0;
+		
+		if (bumpAll) {
+			VGUI_COORD yCum = 0;	// By seriously, y tho?
+			for (unsigned int ii = iChunkStartHint; ii < iChunkEndHint; ++ii) {
+				// IF IS IN WINDOW
+				if (mTextChunks[ii]->needsRegeneration(chunkWidth)) {
+					mTextChunks[ii]->regenerate(chunkWidth);
+					nRowsRegenerated += mTextChunks[ii]->mLines.size();
+					}
+				
+				// Bump the next
+				if (ii+1 < mTextChunks.size()) {
+					yCum = mTextChunks[ii]->yPos + mTextChunks[ii]->ySize - mTextChunks[ii+1]->yPos;
+					mTextChunks[ii+1]->yPos += yCum;
+					}
+				
+				// If we have shrunk and moved a new chunk in, process that too
+				if (ii == iChunkEndHint-1 && mTextChunks.size() > iChunkEndHint && yCum < 0) {
+					if (mTextChunks[ii]->yPos + mTextChunks[ii]->ySize < yScroll + drawHeight) {
+						iChunkEndHint++;
+						}
+					}
+				}
+			
+			if (!VGUI_FUZZY_ZERO(yCum)) { // Only shift if the distance has changed
+				for (unsigned int ii = iChunkEndHint+1; ii < mTextChunks.size(); ++ii)
+					mTextChunks[ii]->yPos += yCum;
+				}
+			}
+		
+		//uint64_t NOW = SDL_GetPerformanceCounter();
+		//		std::cout << "Hints (" << iChunkStartHint << ", " << iChunkEndHint << ") last: (" << iChunkStartLast << ", " << iChunkEndLast << "), chunks: " << mTextChunks.size() << " chunkZero.size: " << mTextChunks[0]->rawRows.size() << "/" << mTextChunks[0]->mLines.size()  << std::endl;
+		
+		// Clear off-screen chunks
+		for (unsigned int i = iChunkStartLast; i < iChunkEndLast; ++i) {
+			if (i >= iChunkStartHint && i < iChunkEndHint) continue;
+			if (i < mTextChunks.size())
+				mTextChunks[i]->clearLineCache();
+			}
+			
+		doAutoscroll(ipeT + ipeB);
+		
+		const bool doDrawCaret = (isActive && caretChunkIndex >= iChunkStartHint && caretChunkIndex < iChunkEndHint && caretChunkIndex >= 0 && caretChunkIndex < mTextChunks.size() );
+		
+		if (bumpAll || yScrollLast != yScroll || isActive)
+			markDirty();
+		
+		yScrollLast = yScroll;
+		
+		if (doDraw(forceDraw)) {
+			// Draw box
+			wrangleStyle()->draw(*this);
+				
+			Vgui_ContextI::aContext->pushScissor(drawX + ipeL, drawY + ipeT, drawX + drawWidth - ipeR, drawY + drawHeight - ipeB);
+			
+			if (doDrawCaret) {
+				Vgui_Style * SI = wrangleStyle();
+				// fetch active line
+				textChunk * TC = mTextChunks[caretChunkIndex];
+				if (TC) {
+					if (caretRow >= 0 && caretRow < int(TC->mLines.size()))
+						SI->drawBlinkingCaretAt(TC->mLines[caretRow]->text, caretRowPosition, drawX + ipeL, drawY + ipeT + rowSz*caretRow + TC->yPos - yScroll, 0);
+					}
+				}
+			
+			// DRAW
+			for (unsigned int i = iChunkStartHint; i < iChunkEndHint; ++i) {
+				// Draw lines
+				textChunk * TC = mTextChunks[i];
+				for (unsigned int j = 0; j < TC->mLines.size(); ++j) {
+					const VGUI_COORD localPos = TC->yPos + j*rowSz;
+					//std::cout << "Drawing (" << i << ", " << j << "), y: "  << (localPos) << ", yScroll: " << yScroll << " checks:" <<  (localPos < yScroll - rowSz) << " " << (localPos > yScroll + drawHeight)  << std::endl;
+					
+					if (localPos < yScroll - rowSz) continue;
+					if (localPos > yScroll + drawHeight) continue;
+					
+					TC->mLines[j]->prerender();
+					TC->mLines[j]->draw(ipeL + drawX - xScroll, ipeT + drawY + localPos - yScroll);
+					}
+				}
+			
+			Vgui_ContextI::aContext->popScissor();
+			}
+		
+		//uint64_t NOW2 = SDL_GetPerformanceCounter();
+		//const double deltaTime = (double)((NOW - LAST)*1000 / (double)SDL_GetPerformanceFrequency() );
+		//const double deltaTime2 = (double)((NOW2 - START)*1000 / (double)SDL_GetPerformanceFrequency() );
+		//if (bumpAll || deltaTime2 > 100) std::cout << "Regenerated - " << nRowsRegenerated << " rows of text - Frametime: " << deltaTime << "ms \t avg: " << (deltaTime/nRowsRegenerated) << "ms, total draw() time: " << deltaTime2 << "ms"<< std::endl;
+		
+
+		}
+	
+	}

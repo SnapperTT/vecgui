@@ -1,0 +1,166 @@
+namespace vecgui {
+	
+void tokeniseString (const VGUI_STRING & stringIn, VGUI_VECTOR<VGUI_STRING> & arrOut, const char delimiter, bool checkQuoteMarks = true, char escapeChar = '\\') {
+	/**
+	 *  Breaks a string s into an array of strings,
+	 * tokenised by "delimter" (unless inbetween two """ marks).
+	 *  An escape character negates the delimiter
+	 */
+	size_t n = 1;
+	bool open = false;
+	const VGUI_STRING & s = stringIn;
+	// go though, count the delimiter
+	for (size_t i = 0; i < s.length(); ++i) {
+		if (s[i] == escapeChar) {
+			// Skip the next character
+			++i;
+			continue;
+			}
+		if (s[i] == delimiter && !open)
+			n++;
+		if (s[i] == '"' && checkQuoteMarks) {
+			open = !open;
+			}
+		}
+	
+	// Add the words
+	size_t j = arrOut.size();
+	arrOut.resize(j + n);
+	open = false;
+	for (size_t i = 0; i < s.length(); i++) {
+		if (s[i] == escapeChar) {
+			// Add the next charcter in regardless
+			++i;
+			if (i < s.length())
+				arrOut[j] += s[i];
+			continue;
+			}
+		if (s[i] != delimiter || open) {
+			if (s[i] != '"' || !checkQuoteMarks) {
+				arrOut[j] += s[i];
+				}
+			else {
+				open = !open;
+				}
+			}
+		else {
+			j++;
+			}
+		}
+	}
+
+
+VGUI_STRING itos(int val) {
+	// converts int to string. Don't use this. Only use for debugging
+	const int size = 12;
+	char buf[size+1];
+	buf[size] = 0;
+	int index = size;
+	bool neg = false;
+	if (val < 0) {    // Obviously don't need this if val is always positive.
+		neg = true;
+		val = -val;
+		}
+
+	do {
+		buf[--index] = (val % 10) + '0';
+		val /= 10;
+		} while(val);
+	if (neg)
+		buf[--index] = '-';
+	return VGUI_STRING(&buf[index]);
+	}
+	
+	
+void replaceStringInPlace(VGUI_STRING & subject, const VGUI_STRING & search, const VGUI_STRING & replace) {
+	if (search == "") return;
+    size_t pos = 0;
+    while ((pos = subject.find(search, pos)) < subject.length()) {
+		subject.replace(pos, search.length(), replace);
+		pos += replace.length();
+		}
+	}
+
+
+void breakString_worker (sttfont_font_cache* fc, const sttfont_formatted_text & stringIn, VGUI_VECTOR<sttfont_formatted_text> & arrOut, const VGUI_COORD xs,
+	const bool tokeniseNewLines, VGUI_VECTOR<uintQuad> * breakPoints) {
+	if (breakPoints) {
+		VGUI_VECTOR<sttfont_uintQuad> tempBreak;
+		fc->breakString(stringIn, arrOut, xs, tokeniseNewLines, &tempBreak);
+		uint32_t sz0 = breakPoints->size();
+		breakPoints->resize(sz0 + tempBreak.size());
+		for (uint32_t i = 0; i < tempBreak.size(); ++i) {
+			(*breakPoints)[i+sz0] = uintQuad(tempBreak[i].first, tempBreak[i].second, tempBreak[i].third, tempBreak[i].fourth);
+			}
+		}
+	else
+		fc->breakString(stringIn, arrOut, xs, tokeniseNewLines, NULL);
+	}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	
+void breakString (const VGUI_STRING & stringIn, VGUI_VECTOR<VGUI_STRING> & arrOut, const VGUI_COORD xs,
+	const bool tokeniseNewLines = true, const char escapeChar = '\\', const char tagChar = '%') {
+		abort(); // Is this even used?
+	// Trivial case	
+	if (tokeniseNewLines) {
+		VGUI_VECTOR<VGUI_STRING> tokenised;
+		tokeniseString(stringIn, tokenised, '\n', false, 0);
+	//	std::cout << "tokenised.size " << tokenised.size() << std::endl;
+	//	exit(1);
+		for (size_t i = 0; i < tokenised.size(); ++i) {
+			breakString (tokenised[i], arrOut, xs, false, escapeChar, tagChar);
+			}
+		return;
+		}
+	
+	if (Vgui_ContextI::aContext->getTextWidth(stringIn) < xs) {
+		arrOut.push_back(stringIn);
+		return;
+		}
+	
+	
+	// Break up string based on spaces
+	VGUI_STRING slast = "";
+	size_t j = 0, k = 0;
+	size_t extra = 0;
+	
+	for (size_t i = 0; i < stringIn.size(); ++i) {
+		const bool isLastChar = (i == (stringIn.size()-1));
+			
+		if (stringIn[i] != ' ' && i != (stringIn.size()-1)) continue;
+		extra = (i == (stringIn.size()-1)) ? 1 : 0;
+		VGUI_STRING s = stringIn.substr(j, i-j + extra);
+		
+		int test = 0;
+		
+		test = Vgui_ContextI::aContext->getTextWidth(s);
+		
+		// Remove any "\%" strings
+		vecgui::replaceStringInPlace (s, VGUI_STRING(1,escapeChar) + tagChar, VGUI_STRING(1,tagChar));
+		
+		if (test > xs) {
+			//cout << "Push Back \"" << slast << "\" / \"" << s << "\""  << itos3(i,j,k) << "  " << getConsoleFontStrLen(s) << "/" << itos(xs) << endl;
+			if (k)
+				arrOut.push_back(slast);
+			else {
+				arrOut.push_back(s);
+				k = i;
+				}
+			j = k+1;
+			k = 0;
+			slast = "";
+			}
+		else {
+			k = i;
+			slast = s;
+			}
+		if (isLastChar && j < stringIn.size()) {
+			arrOut.push_back (stringIn.substr(j));
+			}
+		}
+	}
+	
+	
+}

@@ -1,0 +1,160 @@
+#hdr
+#include "vgui_constants.hpp"
+
+//#define VGUI_USE_INT
+#define VGUI_USE_DOUBLE
+
+#ifdef VGUI_DO_DELTA_DRAWING
+	#undef VGUI_DO_DELTA_DRAWING
+	#define VGUI_DO_DELTA_DRAWING true
+#else
+	#define VGUI_DO_DELTA_DRAWING false
+#endif
+
+#ifdef VGUI_USE_INT
+
+	#ifndef VGUI_COORD
+		#define VGUI_COORD int
+	#endif
+	#ifndef VGUI_ABS
+		#define VGUI_ABS abs
+	#endif
+	#ifndef VGUI_FUZZY_ZERO
+		#define VGUI_FUZZY_ZERO(X) (X == 0)
+	#endif
+	#ifndef VGUI_COORD_MIN_VALUE
+		#define VGUI_COORD_MIN_VALUE -0x0fffffff
+	#endif
+	#ifndef VGUI_COORD_MAX_VALUE
+		#define VGUI_COORD_MAX_VALUE 0x0fffffff
+	#endif
+	
+#elif defined(VGUI_USE_DOUBLE)
+	#ifndef VGUI_COORD
+		#define VGUI_COORD double
+	#endif
+	#ifndef VGUI_ABS
+		#define VGUI_ABS fabs
+	#endif
+	#ifndef VGUI_FUZZY_ZERO
+		#define VGUI_FUZZY_ZERO(X) (VGUI_ABS(X) < 0.001)
+	#endif
+	#ifndef VGUI_COORD_MIN_VALUE
+		#define VGUI_COORD_MIN_VALUE double(int(-0x0fffffff))
+	#endif
+	#ifndef VGUI_COORD_MAX_VALUE
+		#define VGUI_COORD_MAX_VALUE double(int(0x0fffffff))
+	#endif
+#endif
+
+
+#ifndef VGUI_COLOR
+	#define VGUI_COLOR uint8_t
+#endif
+#ifndef VGUI_COLOR_MAX
+	#define VGUI_COLOR_MAX 255
+#endif
+
+#ifndef VGUI_STRING
+	#define VGUI_STRING std::string
+	#include <string>
+#endif
+
+#ifndef VGUI_TAG_TYPE
+	#define VGUI_TAG_TYPE VGUI_STRING
+#endif
+
+#ifndef VGUI_VECTOR
+	#define VGUI_VECTOR std::vector
+	#include <vector>
+#endif
+
+#ifndef VGUI_MIN
+	#define VGUI_MIN(X,Y) (X < Y ? X : Y)
+#endif
+#ifndef VGUI_MAX
+	#define VGUI_MAX(X,Y) (X > Y ? X : Y)
+#endif
+#ifndef VGUI_CLAMP
+	#define VGUI_CLAMP(X,L,H) VGUI_MIN(VGUI_MAX(X,L), H)
+#endif
+
+
+
+#ifndef VGUI_NEW
+	#define VGUI_NEW(X) new (X)
+#endif
+#ifndef VGUI_DEL
+	#define VGUI_DEL(X) delete (X)
+#endif
+
+class Vgui_Widget;
+class Vgui_SkinI;
+class Vgui_Style;
+
+void Vgui_Abort(const char * ext);
+
+template <typename T, int maxSz>
+struct Vgui_MaxSizeArray {
+	T array[maxSz];
+	int sz;
+	
+	Vgui_MaxSizeArray() : sz(0) {}
+	inline void push_back(T&&v) {
+		if (sz >= maxSz) { Vgui_Abort("buffer overflow"); }
+		array[sz] = std::move(v); sz++;
+		}
+	inline void push_back(const T&v) {
+		if (sz >= maxSz) { Vgui_Abort("buffer overflow"); }
+		array[sz] = std::move(v); sz++;
+		}
+	inline int size() const { return sz; }
+	inline T& operator[](const int idx) { return array[idx]; }
+	inline const T& operator[](const int idx) const { return array[idx]; }
+	inline void clear()  { sz = 0; }
+	};
+	
+#include "vgui_context.hh"
+#include "vgui_widget.hh"
+#include "vgui_skin.hh"
+#include "vgui_elements.hh"
+#include "vgui_multilinetext.hh"
+#include "vgui_stringfunctions.hh"
+
+//#include "sdl_vgui_context.hh"
+
+void Vgui_Cleanup();
+#end
+
+#src
+//#include "vgui_context.cpp"
+//#include "vgui_widget.cpp"
+//#include "vgui_skin.cpp"
+//#include "vgui_elements.cpp"
+//#include "vgui_multilinetext.cpp"
+//#include "vgui_stringfunctions.cpp"
+
+//#include "sdl_vgui_context.cpp"
+
+void Vgui_Abort(const char * ext) {
+	abort();
+	}
+void Vgui_Cleanup() {
+	Vgui_SkinI::defaultSkin.freeDefaultStyles();
+	}
+#end
+
+#ifdef STTR_ENABLED
+void vgui_sttr_register() {
+	Vgui_ContextI::sttr_register ();
+	SDL_Vgui_Context::sttr_register ();
+	Vgui_Widget::sttr_register ();
+	Vgui_TextSubWidget::sttr_register ();
+	Vgui_Frame::sttr_register ();
+	Vgui_Button::sttr_register ();
+	Vgui_Text::sttr_register ();
+	Vgui_TextEdit::sttr_register ();
+	Vgui_MultilineText::sttr_register ();
+	}
+#endif // STTR_ENABLED
+

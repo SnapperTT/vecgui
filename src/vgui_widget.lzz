@@ -1,0 +1,964 @@
+#ifdef STTR_ENABLED
+	#insert "sttr_compat_macros.hpp"
+#endif
+
+#hdr
+#include "vgui_skin.hh"
+#end
+
+
+class Vgui_EventCallbackI {
+public:
+	virtual void onMouseEvent(Vgui_Widget * W, VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {}
+	virtual void onScrollbarMouseEvent(Vgui_Widget * W, VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {}
+	virtual void onKeyEvent(Vgui_Widget * W, const int keyId, const bool down, const bool up, const bool hold, const bool repeat) {}
+	virtual void onTextInputEvent(Vgui_Widget * W, const VGUI_STRING & string, const Vgui_TextEditEvent evType, VGUI_STRING & textOut) {}
+	// Todo: onGamepad_buttonEvent
+	// onJoy_buttonEvent
+	// ..etc
+	
+	};
+	
+class Vgui_OptionalEventCallbackI {
+public:
+	Vgui_Widget * W;
+	Vgui_EventCallbackI * CBI;
+	Vgui_OptionalEventCallbackI (Vgui_Widget * _W, Vgui_EventCallbackI * _CBI) : W(_W), CBI(_CBI) {}
+	Vgui_OptionalEventCallbackI () : W(NULL), CBI(NULL) {}
+	void onMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) { if (CBI && W) CBI->onMouseEvent(W, mouseX, mouseY, buttonMask, isDown); }
+	void onScrollbarMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) { if (CBI && W) CBI->onScrollbarMouseEvent(W, mouseX, mouseY, buttonMask, isDown); }
+	void onKeyEvent(const int keyId, const bool down, const bool up, const bool hold, const bool repeat) { if (CBI && W) CBI->onKeyEvent(W, keyId, down, up, hold, repeat); }
+	void onTextInputEvent(const VGUI_STRING & string, const Vgui_TextEditEvent evType, VGUI_STRING & textOut) { if (CBI && W) CBI->onTextInputEvent(W, string, evType, textOut); }
+	};
+	
+class Vgui_StyleWrap {
+public:
+	//VGUI_STRING styleTag;		// Set this to load a default style
+	Vgui_Style mStyle;		// Store of the actual style
+		
+	#ifdef STTR_ENABLED
+	static void sttr_register() {
+		// Needs custom encode/decode
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.beginClass<Vgui_StyleWrap>("Vgui_StyleWrap")
+			.STTR_REGF(Vgui_StyleWrap, mStyle, VGUI_PERSISTANT | VGUI_OWNS_POINTER)
+		.endClass();
+		}
+	STTR_CLASS_SIG(Vgui_StyleWrap)
+	#endif
+	};
+
+ 
+class Vgui_Widget {
+public:
+	Vgui_Widget * mParent;
+	Vgui_StyleWrap mStyleWrap;
+	Vgui_EventCallbackI * mEventCallback;
+	VGUI_VECTOR<Vgui_Widget*> mChildren;
+	VGUI_STRING tag; // Human readable identifier (if specified)
+
+	// Parameters
+	VGUI_COORD x,y,xs,ys;	// Rel pos from parent, size
+	VGUI_COLOR r,g,b,a;	// Tint colours
+	VGUI_COORD innerPaddingT,innerPaddingB,innerPaddingL,innerPaddingR;
+	VGUI_COORD outerPaddingT,outerPaddingB,outerPaddingL,outerPaddingR;
+	VGUI_COORD xScroll, xScrollMax, yScroll, yScrollMax, xScrollMaxWhenClicked, yScrollMaxWhenClicked;
+	Vgui_Alignment horizontalAlignment;
+	Vgui_Alignment verticalAlignment;
+	Vgui_DimMode widthMode;	// How should the "xs" variable be interprutted?
+	Vgui_DimMode heightMode;// How should the "ys" variable be interprutted?
+	Vgui_PosMode xPosMode;	// How should the "x" variable be interprutted?
+	Vgui_PosMode yPosMode;	// How should the "y" variable be interprutted?
+	
+	// Values
+	Vgui_TextSubWidget text;
+	double value;			// For buttons/checkboxes value == 1 if selected
+	size_t caretPosition;	// For text edited
+	size_t caretSelectionStart;	// For text edit
+
+	// Actions
+	bool isActive;
+	bool isHovering;
+	bool isXScrollbarActive;
+	bool isXScrollbarHovering;
+	bool isYScrollbarActive;
+	bool isYScrollbarHovering;
+	bool isAutoscrolling, isAutoscrollingActive;	// Does this change its position whenever new data is added?
+	
+	// Redraw flag
+	bool isDirty;							// Does this requrie a re-render?
+	bool makesParentDirtyIfMadeDirty;		// If true does this make this->mParent dirty if this is made dirty?
+	bool alwaysDraw;						// Ignore the dirty flag, *ALWAYS* draw this item
+
+	// Cached parameters, don't set these unless you know what you're doing!
+	VGUI_COORD drawX, drawY;
+	VGUI_COORD drawWidth, drawHeight;
+	
+	Vgui_Widget() : mParent(NULL), mEventCallback(NULL) {
+		x = 0, y = 0;
+		xs = 100;
+		ys = 100;
+		r = VGUI_COLOR_MAX, g = VGUI_COLOR_MAX, b = VGUI_COLOR_MAX, a = VGUI_COLOR_MAX;
+		
+		innerPaddingT = 0,innerPaddingB = 0,innerPaddingL = 0,innerPaddingR = 0;
+		outerPaddingT = 0,outerPaddingB = 0,outerPaddingL = 0,outerPaddingR = 0;
+		xScroll = 0, xScrollMax = 0, yScroll = 0, yScrollMax = 0; xScrollMaxWhenClicked = 0; yScrollMaxWhenClicked = 0;
+		horizontalAlignment = Vgui_Alignment::VGUI_LEFT;
+		verticalAlignment = Vgui_Alignment::VGUI_TOP;
+		widthMode = Vgui_DimMode::VGUI_DIM_PERCENT;
+		heightMode = Vgui_DimMode::VGUI_DIM_PERCENT;
+		xPosMode = Vgui_PosMode::VGUI_POS_COORDINATE;
+		yPosMode = Vgui_PosMode::VGUI_POS_COORDINATE;
+
+		value = 0.0;
+		caretPosition = 0;
+		caretSelectionStart = size_t(-1);
+	
+		isActive = false;
+		isHovering = false;
+		isXScrollbarActive = false;
+		isXScrollbarHovering = false;
+		isYScrollbarActive = false;
+		isYScrollbarHovering = false;
+		isAutoscrolling = false;
+		isAutoscrollingActive = false;
+		
+		makesParentDirtyIfMadeDirty = false;
+		isDirty = true;
+		alwaysDraw = false;
+
+		drawX = 0;
+		drawY = 0;
+		drawWidth = 1;
+		drawHeight = 1;
+		
+		setStyle(wrangleDefaultSkin()->Frame);
+		}
+		
+	static Vgui_SkinI * wrangleDefaultSkin() {
+		if (Vgui_ContextI::aContext)
+			if (Vgui_ContextI::aContext->mSkin) return Vgui_ContextI::aContext->mSkin;
+		return &Vgui_SkinI::defaultSkin;
+		}
+		
+	// Generates a deep copy of this, not sharing resources (such as prerendered text)
+	virtual Vgui_Widget * clone() const {
+		Vgui_Widget * r = VGUI_NEW(Vgui_Widget);
+		r->mStyleWrap.mStyle.clearPrimatives();
+		*r = *this;
+		return baseCloneWorker(r);
+		}
+		
+protected:
+	Vgui_Widget * baseCloneWorker (Vgui_Widget * r) const {
+		mStyleWrap.mStyle.clone_in_place(r->mStyleWrap.mStyle, false);
+		
+		r->text.mTextPrerendered = NULL;
+		r->mParent = NULL;
+		r->mChildren.clear();
+		for (const Vgui_Widget * const VW : mChildren) {
+			if (VW)
+				r->mChildren.push_back(VW->clone());
+			}
+		r->repairLinks();
+		return r;
+		}
+		
+public:
+	virtual ~Vgui_Widget() {
+		//mStyleWrap.clear();
+		purgeChildren();
+		}
+
+	#ifdef STTR_ENABLED
+	static void sttr_register() {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.beginClass<Vgui_Widget>("Vgui_Widget")
+			.STTR_REG(Vgui_Widget,mParent)
+			.STTR_REG(Vgui_Widget,mStyleWrap)
+			.STTR_REGF(Vgui_Widget,tag,VGUI_PERSISTANT | VGUI_ZT)
+			
+			.STTR_REGF(Vgui_Widget,x,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,y,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,xs,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,ys,VGUI_PERSISTANT)
+			
+			.STTR_REGF(Vgui_Widget,r,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,g,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,b,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,a,VGUI_PERSISTANT)
+			
+			.STTR_REGF(Vgui_Widget,innerPaddingT,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,innerPaddingB,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,innerPaddingL,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,innerPaddingR,VGUI_PERSISTANT | VGUI_ZT)
+			
+			.STTR_REGF(Vgui_Widget,outerPaddingT,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,outerPaddingB,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,outerPaddingL,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,outerPaddingR,VGUI_PERSISTANT | VGUI_ZT)
+			
+			.STTR_REGF(Vgui_Widget,xScroll,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,xScrollMax,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,yScroll,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,yScrollMax,VGUI_PERSISTANT | VGUI_ZT)
+			
+			.STTR_REGF(Vgui_Widget,horizontalAlignment,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,verticalAlignment,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,widthMode,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,heightMode,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,xPosMode,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,yPosMode,VGUI_PERSISTANT)
+			
+			.STTR_REGF(Vgui_Widget,text,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,value,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REG(Vgui_Widget,caretPosition)
+			.STTR_REG(Vgui_Widget,caretSelectionStart)
+			
+			.STTR_REG(Vgui_Widget,isActive)
+			.STTR_REG(Vgui_Widget,isHovering)
+			.STTR_REG(Vgui_Widget,isXScrollbarActive)
+			.STTR_REG(Vgui_Widget,isXScrollbarHovering)
+			.STTR_REG(Vgui_Widget,isYScrollbarActive)
+			.STTR_REG(Vgui_Widget,isYScrollbarHovering)
+			.STTR_REG(Vgui_Widget,isAutoscrolling)
+			
+			.STTR_REG(Vgui_Widget,isDirty)
+			.STTR_REG(Vgui_Widget,drawX)
+			.STTR_REG(Vgui_Widget,drawY)
+			.STTR_REG(Vgui_Widget,drawWidth)
+			.STTR_REG(Vgui_Widget,drawHeight)
+			
+			.STTR_REGF(Vgui_Widget,mChildren,VGUI_PERSISTANT | VGUI_OWNS_POINTER | VGUI_ZT)
+		
+			// Methods
+			.STTR_REG(Vgui_Widget,purgeChildren)
+			.STTR_REG(Vgui_Widget,repairLinks)
+		//	.STTR_REG(Vgui_Widget,wrangleSkin) 
+		//	.STTR_REG(Vgui_Widget,getStylePadding)
+			.STTR_REG(Vgui_Widget,getRoot)
+			.STTR_REG(Vgui_Widget,addChild)
+			.STTR_REG(Vgui_Widget,addChildTagged)
+			.STTR_REG(Vgui_Widget,removeChild)
+			.STTR_REG(Vgui_Widget,disableRecursive)
+			.STTR_REG(Vgui_Widget,setPos)
+			.STTR_REG(Vgui_Widget,setSize)
+			.STTR_REG(Vgui_Widget,setPosAndSize)
+			.STTR_REG(Vgui_Widget,setDimMode)
+			.STTR_REG(Vgui_Widget,setDimModeBoth)
+			.STTR_REG(Vgui_Widget,setPosMode)
+			.STTR_REG(Vgui_Widget,setPosModeBoth)
+			.STTR_REG(Vgui_Widget,setWidth)
+			.STTR_REG(Vgui_Widget,setHeight)
+			.STTR_REG(Vgui_Widget,setInnerPadding)
+			.STTR_REG(Vgui_Widget,setOuterPadding)
+			.STTR_REG(Vgui_Widget,setInnerPaddingAll)
+			.STTR_REG(Vgui_Widget,setOuterPaddingAll)
+			.STTR_REG(Vgui_Widget,setText)
+			.STTR_REG(Vgui_Widget,getText)
+			.STTR_REG(Vgui_Widget,setColor)
+			.STTR_REG(Vgui_Widget,setColorF)
+			.STTR_REG(Vgui_Widget,setAlignment)
+			.STTR_REG(Vgui_Widget,setAlignmentH)
+			.STTR_REG(Vgui_Widget,setAlignmentV)
+			.STTR_REG(Vgui_Widget,setTag)
+			.STTR_REG(Vgui_Widget,updateCachedAbsValues)
+			.STTR_REG(Vgui_Widget,getByTag)
+			.STTR_REG(Vgui_Widget,draw)
+			.STTR_REG(Vgui_Widget,draw_recursive)
+			.STTR_REG(Vgui_Widget,pollMouseState)
+			.STTR_REG(Vgui_Widget,processMouseEvent)
+			.STTR_REG(Vgui_Widget,processKeyEvent)
+			//.STTR_REG(Vgui_Widget,processTextInputEvent)
+			.STTR_REG(Vgui_Widget,pollMouseState_recursive)
+			.STTR_REG(Vgui_Widget,processMouseEvent_recursive)
+			.STTR_REG(Vgui_Widget,processKeyEvent_recursive)
+			//.STTR_REG(Vgui_Widget,processTextInputEvent_recursive)
+			.STTR_REG(Vgui_Widget,isMouseInRegion)
+			.STTR_REG(Vgui_Widget,isMouseInElement)
+			.STTR_REG(Vgui_Widget,setCaretPosBasedOnPos)
+			.STTR_REG(Vgui_Widget,setCaretPosToEnd) 
+		.endClass();
+		}
+	STTR_CLASS_SIG(Vgui_Widget)
+	#endif
+			
+	// Deletes all the children, freeing the memory
+	void purgeChildren() {
+		for (unsigned int i = 0 ; i < mChildren.size(); ++i) {
+			VGUI_DEL(mChildren[i]);
+			mChildren[i] = NULL;
+			}
+		mChildren.clear();
+		}
+	
+	// Links mChild->parent = this for all children,
+	// frees NULL children
+	void repairLinks() {
+		for (unsigned int i = 0 ; i < mChildren.size(); ++i) {
+			if (!mChildren[i]) {
+				mChildren.erase(mChildren.begin() + i);
+				--i;
+				continue;
+				}
+			mChildren[i]->mParent = this;
+			mChildren[i]->repairLinks();
+			}
+		}
+
+	// Returns the skin used by this widget. If a skin is not set,
+	// then return the default skin used
+	Vgui_Style* wrangleStyle() const {
+		return const_cast<Vgui_Style*>(&mStyleWrap.mStyle);
+		}
+		
+	void setStyle(const Vgui_Style& v) {
+		v.clone_in_place(mStyleWrap.mStyle, true);
+		}	
+
+	//Vgui_SkinI * wrangleSkin() const {
+	//	if (mSkin) return mSkin;
+	//	return Vgui_ContextI::aContext->mSkin;
+	//	}
+
+	// Sets the inner padding for this element as defined by the skin
+	// Note that this value is different than the innerPadding member
+	virtual void getStylePadding(VGUI_COORD & _innerPaddingT, VGUI_COORD & _innerPaddingB, VGUI_COORD & _innerPaddingL, VGUI_COORD & _innerPaddingR) const {
+		wrangleStyle()->getInnerPadding( *this, _innerPaddingT, _innerPaddingB, _innerPaddingL, _innerPaddingR);
+		}
+
+	// Returns the widget at the top of the tree
+	// (recursively gets mParent->mParent-> etc)
+	Vgui_Widget * getRoot() {
+		if (mParent) return mParent->getRoot();
+		return this;
+		}
+
+	// Adds a child, transferring ownership of it to this. This is also where the unique id is assigned
+	void addChild(Vgui_Widget * _child) {
+		_child->mParent = this;
+		mChildren.push_back(_child);
+		}
+	// Adds a child and tags it at the same time
+	void addChildTagged(Vgui_Widget * _child, const VGUI_TAG_TYPE & _tag) {
+		_child->tag = _tag;
+		addChild(_child);
+		}
+	// Removes a child from this, or any children holding this
+	// If (free == true) then it will be deleted.
+	// Returns true if it was found and removed.
+	bool removeChild(Vgui_Widget * _child, bool freeMem = true) {
+		bool r = false;
+		for (unsigned int i = 0 ; i < mChildren.size(); ++i) {
+			r = r || mChildren[i]->removeChild(_child, false);
+			if (_child == mChildren[i]) {
+				mChildren.erase(mChildren.begin() + i);
+				--i;
+				r = true;
+				}
+			}
+		if (r && freeMem) VGUI_DEL(_child);
+		return r;
+		}
+	
+	// Sets the hover/active flags recusively. Use this to "bind" a element
+	void disableRecursive(bool disableHover, bool disableActive) {
+		for (unsigned int i = 0 ; i < mChildren.size(); ++i) {
+			if (disableHover) if (mChildren[i]->isHovering) { mChildren[i]->isHovering = false; mChildren[i]->markDirty(); }
+			if (disableActive) if (mChildren[i]->isActive) { mChildren[i]->isActive = false; mChildren[i]->markDirty(); }
+			mChildren[i]->disableRecursive(disableHover, disableActive);
+			}
+		}
+
+	// Chainable setter functions
+	Vgui_Widget * setPos(const VGUI_COORD _x, const VGUI_COORD _y) {
+		x = _x, y = _y;
+		return this;
+		}
+	Vgui_Widget * setSize(const VGUI_COORD _xs, const VGUI_COORD _ys) {
+		xs = _xs, ys = _ys;
+		return this;
+		}
+	Vgui_Widget * setPosAndSize(const VGUI_COORD _x, const VGUI_COORD _y, const VGUI_COORD _xs, const VGUI_COORD _ys) {
+		x = _x, y = _y, xs = _xs, ys = _ys;
+		return this;
+		}
+	Vgui_Widget * setDimMode(const Vgui_DimMode _widthMode, const Vgui_DimMode _heightMode) {
+		widthMode = _widthMode;
+		heightMode = _heightMode;
+		return this;
+		}
+	Vgui_Widget * setDimModeBoth(const Vgui_DimMode _widthAndHeightMode) {
+		widthMode = _widthAndHeightMode;
+		heightMode = _widthAndHeightMode;
+		return this;
+		}
+	Vgui_Widget * setPosMode(const Vgui_PosMode _xPosMode, const Vgui_PosMode _yPosMode) {
+		xPosMode = _xPosMode;
+		yPosMode = _yPosMode;
+		return this;
+		}
+	Vgui_Widget * setPosModeBoth(const Vgui_PosMode _xAndyPosMode) {
+		xPosMode = _xAndyPosMode;
+		yPosMode = _xAndyPosMode;
+		return this;
+		}
+	Vgui_Widget * setWidth(const VGUI_COORD _xs) {
+		xs = _xs;
+		return this;
+		}
+	Vgui_Widget * setHeight(const VGUI_COORD _ys) {
+		ys = _ys;
+		return this;
+		}
+	Vgui_Widget * setInnerPaddingAll(const VGUI_COORD _p) {
+		innerPaddingT = _p, innerPaddingB = _p, innerPaddingL = _p, innerPaddingR = _p;
+		return this;
+		}
+	Vgui_Widget * setOuterPaddingAll(const VGUI_COORD _p) {
+		outerPaddingT = _p, outerPaddingB = _p, outerPaddingL = _p, outerPaddingR = _p;
+		return this;
+		}
+	Vgui_Widget * setInnerPadding(const VGUI_COORD _t, const VGUI_COORD _b, const VGUI_COORD _l, const VGUI_COORD _r) {
+		innerPaddingT = _t, innerPaddingB = _b, innerPaddingL = _l, innerPaddingR = _r;
+		return this;
+		}
+	Vgui_Widget * setOuterPadding(const VGUI_COORD _t, const VGUI_COORD _b, const VGUI_COORD _l, const VGUI_COORD _r) {
+		outerPaddingT = _t, outerPaddingB = _b, outerPaddingL = _l, outerPaddingR = _r;
+		return this;
+		}
+	Vgui_Widget * setText(const sttfont_formatted_text & _text) {
+		text.assign(_text);
+		return this;
+		}
+	const sttfont_formatted_text& getText () const {
+		return text.text;
+		}
+	Vgui_Widget * setColor(const VGUI_COLOR _r, const VGUI_COLOR _g, const VGUI_COLOR _b, const VGUI_COLOR _a) {
+		r = _r, g = _g, b = _b, a = _a;
+		return this;
+		}
+	Vgui_Widget * setColorF(const float _r, const float _g, const float _b, const float _a) {
+		r = _r*VGUI_COLOR_MAX, g = _g*VGUI_COLOR_MAX, b = _b*VGUI_COLOR_MAX, a = _a*VGUI_COLOR_MAX;
+		return this;
+		}
+	Vgui_Widget * setAlignment(const Vgui_Alignment hz, const Vgui_Alignment vt) {
+		horizontalAlignment = hz, verticalAlignment = vt;
+		return this;
+		}
+	Vgui_Widget * setAlignmentH(const Vgui_Alignment hz) {
+		horizontalAlignment = hz;
+		return this;
+		}
+	Vgui_Widget * setAlignmentV(const Vgui_Alignment vt) {
+		verticalAlignment = vt;
+		return this;
+		}
+	Vgui_Widget * setTag(const VGUI_TAG_TYPE & _tag) {
+		tag = _tag;
+		return this;
+		}
+		
+	// Updates the absolute position and size of this
+	// This is internally called by Vgui_ContextI::draw()
+	void updateStyleCachedValues() {
+		wrangleStyle()->updateCachedValues(*this);
+		}
+	
+	void updateCachedAbsValues() { 
+		const VGUI_COORD drawX_before = drawX;
+		const VGUI_COORD drawY_before = drawY;
+		const VGUI_COORD drawWidth_before = drawWidth;
+		const VGUI_COORD drawHeight_before = drawHeight;
+		
+		if (!mParent) {
+			drawX = x, drawY = y;
+			drawWidth = xs, drawHeight = ys;
+			if (widthMode == Vgui_DimMode::VGUI_DIM_PERCENT) drawWidth = xs * Vgui_ContextI::aContext->canvasXSz * 0.01;
+			if (heightMode == Vgui_DimMode::VGUI_DIM_PERCENT) drawHeight = ys * Vgui_ContextI::aContext->canvasYSz * 0.01;
+			if (xPosMode == Vgui_PosMode::VGUI_POS_PERCENT) drawX = x * Vgui_ContextI::aContext->canvasXSz * 0.01;
+			if (yPosMode == Vgui_PosMode::VGUI_POS_PERCENT) drawY = y * Vgui_ContextI::aContext->canvasYSz * 0.01;
+		
+			for (auto vgw : mChildren)
+				vgw->updateCachedAbsValues();
+				
+			if (drawX != drawX_before || drawY != drawY_before || drawWidth != drawWidth_before || drawHeight != drawHeight_before)
+				markDirty(); // redraw on resize
+			updateStyleCachedValues();
+			return;
+			}
+	
+		const VGUI_COORD rowSz = Vgui_ContextI::aContext->getTextLineHeight();
+		VGUI_COORD ipeT, ipeB, ipeL, ipeR;
+		mParent->getStylePadding( ipeT, ipeB, ipeL, ipeR);
+		
+		drawX = mParent->drawX + mParent->innerPaddingL - mParent->xScroll + ipeL;
+		drawY = mParent->drawY + mParent->innerPaddingT - mParent->yScroll + ipeT;
+		drawWidth = xs;
+		drawHeight = ys;
+	
+		VGUI_COORD parentInnerWidth  = VGUI_MAX(mParent->drawWidth,  mParent->xScrollMax) - mParent->innerPaddingL - mParent->innerPaddingR - ipeL - ipeR;
+		VGUI_COORD parentInnerHeight = VGUI_MAX(mParent->drawHeight, mParent->yScrollMax) - mParent->innerPaddingT - mParent->innerPaddingB - ipeT - ipeB;
+		bool isSizeDependentOnText = ((widthMode == Vgui_DimMode::VGUI_DIM_TEXT) || (heightMode == Vgui_DimMode::VGUI_DIM_TEXT));
+		if (isSizeDependentOnText) {
+			VGUI_COORD txs, tys;
+			Vgui_ContextI::aContext->getTextSize(text.text, txs, tys);
+			VGUI_COORD iteT, iteB, iteL, iteR;
+			getStylePadding( iteT, iteB, iteL, iteR);
+			
+			if (widthMode == Vgui_DimMode::VGUI_DIM_TEXT)
+				xs = txs + iteL + iteR + wrangleStyle()->textXSizePadding;
+			if (heightMode == Vgui_DimMode::VGUI_DIM_TEXT)
+				ys = tys + iteT + iteB + wrangleStyle()->textYSizePadding;
+			}
+		if (widthMode == Vgui_DimMode::VGUI_DIM_PERCENT) drawWidth = xs * parentInnerWidth * 0.01;
+		if (heightMode == Vgui_DimMode::VGUI_DIM_PERCENT) drawHeight = ys * parentInnerHeight * 0.01;
+		
+		if (widthMode == Vgui_DimMode::VGUI_DIM_TEXT_ROWS) {
+			if (xs >= 0) drawWidth = xs * rowSz;
+			else 		 drawWidth = parentInnerWidth + xs * rowSz;
+			}
+		if (heightMode == Vgui_DimMode::VGUI_DIM_TEXT_ROWS) {
+			if (ys >= 0) drawHeight = ys * rowSz;
+			else 		 drawHeight = parentInnerHeight + ys * rowSz;
+			}
+		
+		//if (xs > parentInnerWidth) xs = parentInnerWidth;
+		//if (ys > parentInnerHeight) ys = parentInnerHeight;
+
+		VGUI_COORD xt = x;
+		VGUI_COORD yt = y;
+		if (xPosMode == Vgui_PosMode::VGUI_POS_PERCENT) xt = x * parentInnerWidth * 0.01;
+		if (yPosMode == Vgui_PosMode::VGUI_POS_PERCENT) yt = y * parentInnerHeight * 0.01;
+		if (xPosMode == Vgui_PosMode::VGUI_POS_TEXT_ROWS) {
+			if (x >= 0) xt = x * rowSz;
+			else 		xt = parentInnerWidth + x * rowSz;
+			}
+		if (yPosMode == Vgui_PosMode::VGUI_POS_TEXT_ROWS) {
+			if (y >= 0) yt = y * rowSz;
+			else 		yt = parentInnerHeight + y * rowSz;
+			}
+
+		if (horizontalAlignment == Vgui_Alignment::VGUI_CENTER)
+			drawX = drawX + xt + (parentInnerWidth - drawWidth) * 0.5;
+		else if (horizontalAlignment == Vgui_Alignment::VGUI_RIGHT)
+			drawX = drawX - xt + (parentInnerWidth - drawWidth);
+		else drawX += xt;
+
+		if (verticalAlignment == Vgui_Alignment::VGUI_CENTER)
+			drawY = drawY + yt + (parentInnerHeight - drawHeight) * 0.5;
+		else if (verticalAlignment == Vgui_Alignment::VGUI_BOTTOM)
+			drawY = drawY - yt + (parentInnerHeight - drawHeight);
+		else drawY += yt;
+
+		bool isContainer = ((widthMode == Vgui_DimMode::VGUI_DIM_CHILD) || (heightMode == Vgui_DimMode::VGUI_DIM_CHILD));
+		if (isContainer) {
+			// Set size based on children
+			// Not yet implemented
+			}
+		//std::cout << "UCA " << yt << " y: " << y << ", innerHeight: " << parentInnerHeight << std::endl;
+
+		for (auto vgw : mChildren)
+			vgw->updateCachedAbsValues();
+			
+		if (drawX != drawX_before || drawY != drawY_before || drawWidth != drawWidth_before || drawHeight != drawHeight)
+			markDirty(); // redraw on resize
+		updateStyleCachedValues();
+		}
+
+
+	// Searches recursively for a Vgui_Widget with a tag that matches searchTag 
+	Vgui_Widget * getByTag(const VGUI_STRING & searchTag) {
+		if (tag == searchTag) return this;
+		for (auto vgw : mChildren) {
+			if (vgw->tag == searchTag) return vgw;
+			Vgui_Widget * R = vgw->getByTag(searchTag);
+			if (R) return R;
+			}
+		return NULL;
+		}
+		
+	// Marks this as "dirty" - needs to be rerendered
+	void markDirty() {
+		if (!VGUI_DO_DELTA_DRAWING) return;
+		isDirty = true;
+		if (makesParentDirtyIfMadeDirty)
+			if (mParent)
+				mParent->markDirty();
+		}
+	
+	// Is this "dirty"? Or otherwise forced to draw?
+	// If drawing, resets isDirty
+	inline bool doDraw(const bool forceDraw) {
+		if (!VGUI_DO_DELTA_DRAWING) return true;
+		if (isDirty || alwaysDraw || forceDraw) {
+			isDirty = false;
+			return true;
+			}
+		return false;
+		}
+		
+	void prerender() {
+		/// prerenders text recusively
+		text.prerender();
+		for (auto vgw : mChildren) vgw->prerender();
+		}
+
+	virtual void draw (const bool forceDraw) {
+		}
+		
+	virtual void draw_recursive (const bool forceDraw) {
+		text.prerender();
+		bool subForceDraw = (isDirty || alwaysDraw || forceDraw);
+		//if (isDirty) std::cout << "I'm dirty! " << tag << std::endl;
+		draw(forceDraw);
+			
+		VGUI_COORD ipeL, ipeR, ipeT, ipeB;
+		getStylePadding( ipeT, ipeB, ipeL, ipeR);
+		
+		Vgui_ContextI::aContext->pushScissor(drawX + ipeL, drawY + ipeT, drawX + drawWidth - ipeR, drawY + drawHeight - ipeB);
+		for (auto vgw : mChildren) vgw->draw_recursive(subForceDraw);
+		Vgui_ContextI::aContext->popScissor();
+		
+		isDirty = false;
+		}
+
+	virtual void pollMouseState(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask) {}
+		
+	virtual bool processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		return false;
+		}
+	
+	virtual bool processKeyEvent(const int keyId, const bool down, const bool up, const bool hold, const bool repeat) {
+		return false;
+		}
+
+	virtual bool processTextInputEvent(const VGUI_STRING & string, const Vgui_TextEditEvent evType, VGUI_STRING & textOut) {
+		return false;
+		}
+
+	void pollMouseState_recursive(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask) {
+		pollMouseState(mouseX, mouseY, buttonMask);
+		for (auto vgw : mChildren) {
+				vgw->pollMouseState_recursive(mouseX, mouseY, buttonMask);
+			}
+		}
+	bool processMouseEvent_recursive(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		if (processMouseEvent(mouseX, mouseY, buttonMask, isDown)) return true;
+		for (auto vgw : mChildren) {
+			if (vgw->processMouseEvent_recursive(mouseX, mouseY, buttonMask, isDown)) return true;
+			}
+		return false;
+		}
+	// Processes a key event
+	bool processKeyEvent_recursive(const int keyId, const bool down, const bool up, const bool hold, const bool repeat) {
+		if (processKeyEvent(keyId, down, up, hold, repeat)) return true;
+		for (auto vgw : mChildren) {
+			if (vgw->processKeyEvent_recursive(keyId, down, up, hold, repeat)) return true;
+			}
+		return false;
+		}
+	bool processTextInputEvent_recursive(const VGUI_STRING & string, const Vgui_TextEditEvent evType, VGUI_STRING & textOut) {
+		if (processTextInputEvent(string, evType, textOut)) return true;
+		for (auto vgw : mChildren) {
+			if (vgw->processTextInputEvent_recursive(string, evType, textOut)) return true;
+			}
+		return false;
+		}
+		
+	// Returns true if the mouse is positioned in this element
+	static bool isMouseInRegion(VGUI_COORD mouseX, VGUI_COORD mouseY, VGUI_COORD rX, VGUI_COORD rY, VGUI_COORD rW, VGUI_COORD rH) {
+		return (mouseX >= rX && mouseY >= rY &&
+			mouseX <= rX + rW &&
+			mouseY <= rY + rH);		
+		}
+	
+	bool isMouseInElement (VGUI_COORD mouseX, VGUI_COORD mouseY) {
+		return isMouseInRegion (mouseX, mouseY, drawX, drawY, drawWidth, drawHeight);
+		}
+		
+	virtual void setCaretPosBasedOnPos(VGUI_COORD mouseX, VGUI_COORD mouseY) {
+		// Search for the carret position
+		caretPosition = Vgui_ContextI::aContext->getTextCaretPos(text.text, mouseX - drawX, mouseY - drawY);
+		if (caretPosition > text.text.size()) caretPosition = text.text.size();
+		}
+	virtual void setCaretPosToEnd() {
+		caretPosition = text.text.size();
+		}
+		
+	Vgui_OptionalEventCallbackI wrangleEventCallback(bool consumed = true) {
+		if (!consumed) return Vgui_OptionalEventCallbackI(); // If not consumed return nothing and threfore do not callback
+		Vgui_EventCallbackI * CBI = mEventCallback;
+		Vgui_Widget * w = this;
+		while (w && !CBI) {
+			CBI = w->mEventCallback;
+			w = w->mParent;
+			}
+		return Vgui_OptionalEventCallbackI(this, CBI);
+		}
+	// Functions that are often used by children
+protected:
+
+	void hoverBehaviour_pollMouseState(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask) {
+		bool isHovering_start = isHovering;
+		isHovering = (isMouseInElement(mouseX, mouseY));
+		
+		if (isHovering != isHovering_start)
+			markDirty();
+		}
+
+	bool buttonBehaviour_processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		bool consumed = false;
+		if (buttonMask & VGUI_MB_LEFT) {
+			bool isInside = isMouseInElement(mouseX, mouseY);
+			if (isDown && isInside) {
+				isActive = true;
+				consumed = true;
+				}
+			if (isActive && !isDown) {
+				if (isInside) // Releasing a click outside of the button counts as cancelling
+					value = 1.0;
+				isActive = false;
+				consumed = true;
+				}
+			}
+		wrangleEventCallback(consumed).onMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		if (consumed) markDirty();
+		return consumed;
+		}
+
+	bool toggleBehaviour_processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		bool consumed = false;
+		if (buttonMask & VGUI_MB_LEFT) {
+			bool isInside = isMouseInElement(mouseX, mouseY);
+			if (isDown && isInside) {
+				isActive = !isActive;
+				consumed = true;
+				}
+			else if (isDown && !isInside) {
+				isActive = false; // Does not consume!
+				}
+			}
+		wrangleEventCallback(consumed).onMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		if (consumed) markDirty();
+		return consumed;
+		}
+		
+	bool focusBehaviour_processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		// For things such as drop-down menus
+		bool consumed = toggleBehaviour_processMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		if (consumed && isActive) {
+			Vgui_Widget * R = getRoot();
+			R->disableRecursive(false, true); 
+			isActive = true;
+			}
+		wrangleEventCallback(consumed).onMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		if (consumed) markDirty();
+		return consumed;
+		}
+
+	bool textAreaBehaviour_processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown, bool isFirstClickCaretSetting) {
+		// First click = activate
+		// Second click = set carat position
+		// Click outside = reset
+		bool consumed = false;
+		if (buttonMask & VGUI_MB_LEFT) {
+			bool isInside = isMouseInElement(mouseX, mouseY) && !isXScrollbarHovering && !isYScrollbarHovering;
+			if (isDown && isInside) {
+				bool doCaretPos = false;
+				if (!isActive)
+					doCaretPos = (isFirstClickCaretSetting);
+				else
+					doCaretPos = true;
+				
+				isActive = true;
+				Vgui_Widget * R = getRoot();
+				R->disableRecursive(false, true); 
+				isActive = true;
+				
+				if (doCaretPos)
+					setCaretPosBasedOnPos(mouseX, mouseY);
+				else
+					setCaretPosToEnd();
+					
+				consumed = true;
+				}
+			else if (isDown && !isInside) {
+				isActive = false; // Does not consume!
+				setCaretPosToEnd();
+				}
+			}
+		wrangleEventCallback(consumed).onMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		if (consumed) markDirty();
+		return consumed;
+		}
+		
+	
+	/// Updates the state of this based on the state of the mouse
+	void scrollbar_pollMouseState(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask) {
+		VGUI_COORD scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight,
+			scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight;
+			
+		bool isXScrollbarHovering_start = isXScrollbarHovering;
+		bool isYScrollbarHovering_start = isYScrollbarHovering;
+		bool isXScrollbarActive_start = isXScrollbarActive;
+		bool isYScrollbarActive_start = isYScrollbarActive;
+		VGUI_COORD yScrollStart = yScroll;
+		VGUI_COORD xScrollStart = xScroll;
+		
+		isXScrollbarHovering = false;
+		isYScrollbarHovering = false;
+		
+		
+		if (yScrollMax > 0) {	
+			wrangleStyle()->getVertScrollbarCoords(*this, scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight,
+					scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight);
+			if (isMouseInRegion(mouseX, mouseY, scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight))
+				isYScrollbarHovering = true;
+			if (isYScrollbarActive) {
+				VGUI_COORD maxY = VGUI_MAX(0, yScrollMaxWhenClicked - drawHeight);
+				VGUI_COORD maxYReal = VGUI_MAX(0, yScrollMax - drawHeight);
+				VGUI_COORD begin = scrollbarY + scrollbarHandleHeight/2;
+				VGUI_COORD end = scrollbarY + scrollbarHeight - scrollbarHandleHeight/2;
+				VGUI_COORD dist = end - begin;
+			
+				yScroll = (mouseY - begin)*maxY/VGUI_MAX(dist,1);
+				yScroll = VGUI_CLAMP(yScroll, 0, maxYReal);
+				}
+			}
+		if (xScrollMax > 0) {				
+			wrangleStyle()->getHorzScrollbarCoords(*this, scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight,
+				scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight);
+			if (isMouseInRegion(mouseX, mouseY, scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight))
+				isXScrollbarHovering = true;
+			if (isXScrollbarActive) {
+				VGUI_COORD maxX = VGUI_MAX(0, xScrollMaxWhenClicked - drawWidth);
+				VGUI_COORD maxXReal = VGUI_MAX(0, xScrollMax - drawWidth);
+				VGUI_COORD begin = scrollbarX + scrollbarHandleWidth/2;
+				VGUI_COORD end = scrollbarX + scrollbarWidth - scrollbarHandleWidth/2;
+				VGUI_COORD dist = end - begin;
+			
+				xScroll = (mouseX - begin)*maxX/VGUI_MAX(dist,1);
+				xScroll = VGUI_CLAMP(xScroll, 0, maxXReal);
+				}
+			}
+		// This block is the same as in scrollbar_processMouseEvent
+		if (isAutoscrolling) {
+			if (isYScrollbarActive)
+				isAutoscrollingActive = false;
+			else if (!isAutoscrollingActive && isYScrollbarActive_start) {
+				std::cout << "AUTOSCROLL 1: " << yScroll+drawHeight << " " << VGUI_MIN(yScrollMax, yScrollMaxWhenClicked) << std::endl;
+				if (yScroll+drawHeight >= VGUI_MIN(yScrollMax, yScrollMaxWhenClicked))
+					isAutoscrollingActive = true;
+				}
+			}
+			
+		
+		if ( isXScrollbarHovering_start != isXScrollbarHovering || isYScrollbarHovering_start != isYScrollbarHovering || isXScrollbarActive_start != isXScrollbarActive || isYScrollbarActive_start != isYScrollbarActive  || yScrollStart != yScroll || xScrollStart != xScroll)
+			markDirty();
+			
+		}
+
+	/// Updates the state of this based on the 
+	bool scrollbar_processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		// Check for scroll bar
+		bool consumed = false;
+		bool isXScrollbarHovering_start = isXScrollbarHovering;
+		bool isYScrollbarHovering_start = isYScrollbarHovering;
+		bool isXScrollbarActive_start = isXScrollbarActive;
+		bool isYScrollbarActive_start = isYScrollbarActive;
+		VGUI_COORD yScrollStart = yScroll;
+		VGUI_COORD xScrollStart = xScroll;
+		
+		// Reset scrollbar on mb release
+		if (isXScrollbarActive && (buttonMask & VGUI_MB_LEFT) && !isDown) {
+			isXScrollbarActive = false;
+			consumed = true;
+			}
+		if (isYScrollbarActive && (buttonMask & VGUI_MB_LEFT) && !isDown) {
+			isYScrollbarActive = false;
+			consumed = true;
+			}
+		
+		//if (tag.size())
+		//std::cout << "\n[" << tag <<  "] isXScrollbarActive " << isXScrollbarActive << " isYScrollbarActive " << isYScrollbarActive
+		//		<< ",atsTart " << isYScrollbarActiveStart << " ysm: " << yScrollMax << ", isDown " << isDown
+		//		<< ", isActive: " << isActive << ", isHovering: " << isHovering <<  " " << __PRETTY_FUNCTION__ << std::endl;
+		
+		
+		if ((buttonMask & VGUI_MB_LEFT) && isDown && (yScrollMax > 0 || xScrollMax > 0)) {
+			VGUI_COORD scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight,
+				scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight;	
+			if (yScrollMax > 0) {
+				wrangleStyle()->getVertScrollbarCoords(*this, scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight,
+						scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight);
+
+				if (isMouseInRegion(mouseX, mouseY, scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight)) {
+					isYScrollbarHovering = true;
+					consumed = true;
+					}
+				if (buttonMask && isYScrollbarHovering) {
+					isYScrollbarActive = true;
+					}
+				if (isYScrollbarActive) {
+					yScrollMaxWhenClicked = yScrollMax;	// This is set for the case where this resizes while the user is scrolling
+					VGUI_COORD maxY = VGUI_MAX(0, yScrollMax - drawHeight);
+					VGUI_COORD begin = scrollbarY + scrollbarHandleHeight/2;
+					VGUI_COORD end = scrollbarY + scrollbarHeight - scrollbarHandleHeight/2;
+					VGUI_COORD dist = end - begin;
+					
+					yScroll = (mouseY - begin)*maxY/VGUI_MAX(dist,1);
+					yScroll = VGUI_CLAMP(yScroll, 0, maxY);
+					}
+				}
+			if (xScrollMax > 0) {
+				wrangleStyle()->getHorzScrollbarCoords(*this, scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight,
+						scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight);
+				if (isMouseInRegion(mouseX, mouseY, scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight)) {
+					isXScrollbarActive = true;
+					consumed = true;
+					}
+				if (isXScrollbarActive) {
+					xScrollMaxWhenClicked = xScrollMax;
+					VGUI_COORD maxX = VGUI_MAX(0, xScrollMax - drawWidth);
+					VGUI_COORD begin = scrollbarX + scrollbarHandleWidth/2;
+					VGUI_COORD end = scrollbarX + scrollbarWidth - scrollbarHandleWidth/2;
+					VGUI_COORD dist = end - begin;
+				
+					xScroll = (mouseX - begin)*maxX/VGUI_MAX(dist,1);
+					xScroll = VGUI_CLAMP(xScroll, 0, maxX);
+					}
+				}
+	
+			}
+
+		wrangleEventCallback(consumed).onMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		if (isAutoscrolling) {
+			if (isYScrollbarActive)
+				isAutoscrollingActive = false;
+			else if (!isAutoscrollingActive && isYScrollbarActive_start) {
+				std::cout << "AUTOSCROLL 2: " << yScroll+drawHeight << " " << VGUI_MIN(yScrollMax, yScrollMaxWhenClicked) << std::endl;
+				if (yScroll+drawHeight >= VGUI_MIN(yScrollMax, yScrollMaxWhenClicked))
+					isAutoscrollingActive = true;
+				}
+			}
+		
+		wrangleEventCallback(consumed).onScrollbarMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		
+		if ( isXScrollbarHovering_start != isXScrollbarHovering || isYScrollbarHovering_start != isYScrollbarHovering || isXScrollbarActive_start != isXScrollbarActive || isYScrollbarActive_start != isYScrollbarActive  || yScrollStart != yScroll || xScrollStart != xScroll)
+			markDirty();
+		else if (consumed)
+			markDirty();
+			
+		if (consumed) return true; // ??
+			
+		if (!buttonMask) {
+			isXScrollbarActive = false;
+			isYScrollbarActive = false;
+			}
+		isXScrollbarHovering = false;
+		isYScrollbarHovering = false;
+		return consumed;
+		}
+
+	}

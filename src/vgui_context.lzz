@@ -1,0 +1,549 @@
+#ifdef STTR_ENABLED
+	#insert "sttr_compat_macros.hpp"
+#endif
+
+// Breaks a string into multiple lines such that no line of text is longer than xs
+namespace vecgui {
+struct uintQuad {
+	unsigned int first;
+	unsigned int second;
+	unsigned int third;
+	unsigned int forth;
+	inline uintQuad() : first(0), second(0), third(0), forth(0) {}
+	inline uintQuad(const unsigned int _first) : first(_first), second(0), third(0), forth(0) {}
+	inline uintQuad(const unsigned int _first, const unsigned int _second) : first(_first), second(_second), third(0), forth(0) {}
+	inline uintQuad(const unsigned int _first, const unsigned int _second, const unsigned int _thrid) : first(_first), second(_second), third(_thrid), forth(0) {}
+	inline uintQuad(const unsigned int _first, const unsigned int _second, const unsigned int _thrid, const unsigned int _forth) : first(_first), second(_second), third(_thrid), forth(_forth) {}
+	};
+}
+	
+struct Vgui_PrerenderedTextI {
+	Vgui_PrerenderedTextI () {}
+	virtual ~Vgui_PrerenderedTextI() {}
+	virtual void draw(const VGUI_COORD x, const VGUI_COORD y) {}
+	virtual void drawWithColorMod(const VGUI_COORD x, const VGUI_COORD y, const VGUI_COLOR r, const VGUI_COLOR g, const VGUI_COLOR b, const VGUI_COLOR a = VGUI_COLOR_MAX) {}
+	
+	virtual VGUI_COORD getWidth() const { return 0; }
+	virtual VGUI_COORD getHeight() const { return 0; }
+	};
+	
+struct Vgui_Scissor {
+	VGUI_COORD x,y,w,h;
+	
+	inline bool isNull () const {
+		return (x < 0) && (y < 0) && (w < 0) && (h < 0);
+		}
+	inline void setToNull () {
+		x = -1; y = -1; w = -1; h = -1;
+		}
+	
+	inline Vgui_Scissor() { setToNull(); }
+	};
+
+
+struct Vgui_TextSubWidget {
+	sttfont_formatted_text text;
+	VGUI_COLOR r,g,b,a;
+	Vgui_PrerenderedTextI * mTextPrerendered;
+	bool isDummy;
+	bool startsWithNewLine; // For multiline text rejoining. See Vgui_MultilineText::textChunk
+	
+	Vgui_TextSubWidget () : text(), r(VGUI_COLOR_MAX),g(VGUI_COLOR_MAX),b(VGUI_COLOR_MAX),a(VGUI_COLOR_MAX), mTextPrerendered(NULL), isDummy(false), startsWithNewLine(false) {}
+	//Vgui_TextSubWidget (const VGUI_STRING & _text) : text(_text), r(0),g(0),b(0),a(VGUI_COLOR_MAX), mTextPrerendered(NULL) {}
+	virtual ~Vgui_TextSubWidget() {
+		//std::cout << "~Vgui_TextSubWidget [" << text << "] " << mTextPrerendered << " " << this << std::endl;
+		VGUI_DEL(mTextPrerendered);
+		}
+	
+	bool isEmpty() const {
+		return text.isEmpty();
+		}
+	
+	//void swap(Vgui_TextSubWidget & other) {
+		//text.swap(other.text);
+		//VGUI_COLOR tmp;
+		//tmp = r; r = other.r; other.r = tmp;
+		//tmp = g; g = other.g; other.g = tmp;
+		//tmp = b; b = other.b; other.b = tmp;
+		//tmp = a; a = other.a; other.a = tmp;
+		//Vgui_PrerenderedTextI * tempp;
+		//tempp = mTextPrerendered;
+		//mTextPrerendered = other.mTextPrerendered;
+		//other.mTextPrerendered = tempp;
+		//}
+		
+	void clearCache () {
+		if (mTextPrerendered) {
+			//std::cout << "Clearing: [" << text.getString() << "]" << std::endl;
+			VGUI_DEL(mTextPrerendered);
+			}
+		mTextPrerendered = NULL;
+		}
+	
+	void draw (const VGUI_COORD x, const VGUI_COORD y) const {
+		if (text.isEmpty() || isDummy) return;
+		if (mTextPrerendered) {
+			// As we are drawing directly here we need to apply scaling here
+			if (r != VGUI_COLOR_MAX || g != VGUI_COLOR_MAX || b != VGUI_COLOR_MAX || a != VGUI_COLOR_MAX)
+				mTextPrerendered->drawWithColorMod(Vgui_ContextI::aContext->scalef*x, Vgui_ContextI::aContext->scalef*y, r,g,b,a);
+			else
+				mTextPrerendered->draw(Vgui_ContextI::aContext->scalef*x, Vgui_ContextI::aContext->scalef*y);
+			}
+		}
+		
+	VGUI_COORD getWidth(VGUI_COORD * const maxWidth = NULL) const {
+		if (mTextPrerendered)
+			return mTextPrerendered->getWidth();
+		return Vgui_ContextI::aContext->getTextWidth(text, NULL, maxWidth);
+		}
+		
+	VGUI_COORD getHeight(VGUI_COORD * const maxWidth = NULL) const {
+		if (mTextPrerendered)
+			return mTextPrerendered->getWidth();
+		return Vgui_ContextI::aContext->getTextWidth(text, NULL, maxWidth);
+		}
+	
+	void prerender () {
+		if (!mTextPrerendered && !isDummy) {
+			//std::cout << "Prerendering: [" << text.getString() << "]" << std::endl;
+			text.consolidateSegments();			// Remove junk
+			text.setColour(sttfont_format::black);	// Set any unset colors to black
+			mTextPrerendered = Vgui_ContextI::aContext->genPrerenderedText(text);
+			}
+		}
+	
+	void assign(sttfont_formatted_text_item_MS t) {
+		text = sttfont_formatted_text(std::move(t));
+		requestDraw();
+		}
+	void assign(const sttfont_formatted_text_item & t) {
+		text = sttfont_formatted_text(t);
+		requestDraw();
+		}
+	void assign(sttfont_formatted_text_MS t) {
+		text = std::move(t);
+		requestDraw();
+		}
+	void assign(const sttfont_formatted_text & t) {
+		text = t;
+		requestDraw();
+		}
+	void requestDraw() {
+		clearCache();
+		}
+		
+	
+	/// Adds this to the end of the string
+	void append(const VGUI_STRING & t) { text << t; requestDraw(); }
+	void append(const sttfont_format & fmt) { text << fmt; }
+	void append_formatted_text(const sttfont_formatted_text & _text) { text.append(_text); }
+	void append_formatted_text(sttfont_formatted_text_MS _text) { text.append(std::move(_text)); }
+	
+	/// Removes num characters from this string
+	void back(const unsigned int num) {
+		text.back(num);
+		}
+		
+	/// Inserts text at location
+	void insert(const size_t caretPosition, const VGUI_STRING & t) {
+		text.insert(caretPosition, t);
+		requestDraw();
+		}
+		
+	/// Removes @num characters starting from @caretPosition 
+	void remove(const size_t caretPosition, const size_t num) {
+		text.remove(caretPosition, num);
+		requestDraw();
+		}
+		
+	operator VGUI_STRING() const { return text.getString(); }
+	
+	#ifdef STTR_ENABLED
+	static void sttr_register() {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.beginClass<Vgui_TextSubWidget>("Vgui_TextSubWidget")
+			.STTR_REGF(Vgui_TextSubWidget,text,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_TextSubWidget,r,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_TextSubWidget,g,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_TextSubWidget,b,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_TextSubWidget,a,VGUI_PERSISTANT)
+		.endClass();
+		}
+	STTR_CLASS_SIG(Vgui_TextSubWidget)
+	#endif
+	};
+	
+
+class Vgui_ContextI {
+public:
+	// To use this you need to implement your own version of this
+	// See sdl_vgui_context.lzz for an example
+		
+	Vgui_Widget * mCanvas; 	// The top of the Widget tree
+							// Note that the widget tree is cleaned up when this is destroyed (see destructor)
+	Vgui_SkinI * mSkin;	// The skin used by default for all widgets in this. You are responsible for the lifetime of this
+						// If this is not set, it'll default to &Vgui_SkinI::defaultSkin
+
+	//Vgui_Widget * mActiveItem; // The "activeItem" - eg a text box being edited, or a combo box being brought up
+	//Vgui_Widget * mDrawItem; // The "drawItem" - this is for gamepad inputs
+	VGUI_COORD canvasXSz, canvasYSz; //
+	VGUI_COORD scalef; // A scaling factor to convert Vgui_Widget coordinates to screen/pixel/viewport coordinates
+	bool redrawRq;	// A flag that is set when a ui element inside of this requests that the scene be redrawn
+					// You can use this to prevent redrawing identical stuff (and save CPU when using a software renderer)
+
+	VGUI_VECTOR<Vgui_Scissor> scissorStack;
+	Vgui_Scissor activeScissor;
+	
+	// Assets
+	Vgui_TextSubWidget caretString;
+	VGUI_COORD caretKerning;
+	
+	Vgui_ContextI()
+		: mCanvas(NULL), mSkin(NULL), canvasXSz(100), canvasYSz(100), scalef(1.0f), redrawRq(true), caretKerning(0) { 
+		mSkin = &Vgui_SkinI::defaultSkin;
+		caretString.assign("|");
+		}
+
+	virtual ~Vgui_ContextI() {
+		if (mCanvas) VGUI_DEL(mCanvas);
+		mCanvas = NULL;
+		if (aContext == this) aContext = NULL;
+		}
+		
+	#ifdef STTR_ENABLED
+	static void sttr_register() {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.beginClass<Vgui_ContextI>("Vgui_ContextI")
+			.STTR_REG(Vgui_ContextI,mCanvas)
+			.STTR_REG(Vgui_ContextI,canvasXSz)
+			.STTR_REG(Vgui_ContextI,canvasYSz)
+			.STTR_REG(Vgui_ContextI,scalef)
+			.STTR_REG(Vgui_ContextI,redrawRq)
+
+			.STTR_REG(Vgui_ContextI,bind)
+			.STTR_REG(Vgui_ContextI,setCanvas)
+			.STTR_REG(Vgui_ContextI,requestRedraw)
+			.STTR_REG(Vgui_ContextI,fetchElement)
+			.STTR_REG(Vgui_ContextI,fetchBool)
+			.STTR_REG(Vgui_ContextI,fetchDouble)
+			.STTR_REG(Vgui_ContextI,fetchText)
+			.STTR_REG(Vgui_ContextI,genPrerenderedText)
+			.STTR_REG(Vgui_ContextI,resizeCanvas)
+			.STTR_REG(Vgui_ContextI,renderTriangle)
+			.STTR_REG(Vgui_ContextI,renderQuad)
+			.STTR_REG(Vgui_ContextI,renderQuadWH)
+			.STTR_REG(Vgui_ContextI,setColor)
+			.STTR_REG(Vgui_ContextI,setColorF)
+			.STTR_REG(Vgui_ContextI,clear)
+			.STTR_REG(Vgui_ContextI,pushScissor)
+			.STTR_REG(Vgui_ContextI,popScissor)
+			.STTR_REG(Vgui_ContextI,isScissorCulled_element)
+			.STTR_REG(Vgui_ContextI,isScissorCulled_region)
+			.STTR_REG(Vgui_ContextI,renderText)
+			//.STTR_REG(Vgui_ContextI,getTextSize)
+			.STTR_REG(Vgui_ContextI,getTextWidth_lua)
+			.STTR_REG(Vgui_ContextI,getTextHeight_lua)
+			.STTR_REG(Vgui_ContextI,getTextCaretPos)
+			.STTR_REG(Vgui_ContextI,getTextLineHeight)
+			.STTR_REG(Vgui_ContextI,getTime)
+			.STTR_REG(Vgui_ContextI,draw)
+			.STTR_REG(Vgui_ContextI,pollMouseState)
+			.STTR_REG(Vgui_ContextI,processMouseEvent)
+			.STTR_REG(Vgui_ContextI,processKeyEvent)
+			//.STTR_REG(Vgui_ContextI,processTextInputEvent)
+			.STTR_REG(Vgui_ContextI,setGradient)
+			.STTR_REG(Vgui_ContextI,clearGradient)
+		.endClass();
+		}
+	STTR_CLASS_SIG(Vgui_ContextI)
+	#endif
+	
+	
+	// Active context
+	static Vgui_ContextI * aContext = NULL;
+	 
+	void bind() { Vgui_ContextI::aContext = this; } //Sets this as the active context
+	
+	void setCanvas (Vgui_Widget * _child) {
+		mCanvas=_child;
+		}
+	
+	// Used for the blinking "|" when entering a text field
+	void prerenderCaretString() {
+		if (!caretString.mTextPrerendered) {
+			caretString.prerender();
+			VGUI_COORD tx, ty;
+			Vgui_ContextI::aContext->getTextSize(caretString.text,tx,ty);
+			caretKerning = -tx*0.5;
+			}
+		}
+		
+	inline void requestRedraw() { redrawRq = true; }
+
+	virtual void setGradient(const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD x2, const VGUI_COORD y2, const uint8_t r1, const uint8_t g1, const uint8_t b1, const uint8_t a1, const uint8_t r2, const uint8_t g2, const uint8_t b2, const uint8_t a2) {
+		}
+		
+	virtual void clearGradient() {
+		}
+		
+	// Lookup functions
+	Vgui_Widget * fetchElement(const VGUI_TAG_TYPE & _tag) {
+		if (!mCanvas) return NULL;
+		return mCanvas->getByTag(_tag);
+		}
+	// Lookup the state of the first element named "_tag"
+	bool fetchBool (const VGUI_TAG_TYPE & _tag) {
+		Vgui_Widget * vw = fetchElement(_tag);
+		if (vw) return vw->value;
+		return false;
+		}
+	double fetchDouble (const VGUI_TAG_TYPE & _tag) {
+		Vgui_Widget * vw = fetchElement(_tag);
+		if (vw) return vw->value;
+		return 0.0;
+		}
+	VGUI_STRING fetchText (const VGUI_TAG_TYPE & _tag) {
+		Vgui_Widget * vw = fetchElement(_tag);
+		if (vw) return vw->text;
+		return "";
+		}
+
+	virtual Vgui_PrerenderedTextI * genPrerenderedText (const sttfont_formatted_text & str) const { return NULL; }
+
+	virtual void resizeCanvas(const VGUI_COORD xSz, const VGUI_COORD ySz) {
+		canvasXSz = xSz;
+		canvasYSz = ySz;
+		}
+		
+	// For the following:
+	// All units are arbirtary - they can be pixels, or units or whatever you define!
+
+	// Renders a triangle
+	// You can glBegin ... glEnd this, or you can feed this to some kind of vertex buffer object
+	virtual void renderTriangle (const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD x2, const VGUI_COORD y2, const VGUI_COORD x3, const VGUI_COORD y3) {}
+
+	// Renders an axis-aligned quad
+	virtual void renderQuad (const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD x2, const VGUI_COORD y2) {
+		renderTriangle (x1, y1, x2, y1, x2, y2);
+		renderTriangle (x1, y1, x1, y2, x2, y2);
+		}
+	// Renders an axis-aligned quad, passing width and height
+	virtual void renderQuadWH (const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD width, const VGUI_COORD height) {
+		renderQuad(x1, y1, x1 + width, y1 + height);
+		}
+
+	virtual void renderRoundedQuadWH (const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD r) {
+		int pxc = 1; // pixel correction
+		int r2 = r - pxc;
+		renderQuadWH(x,y+r2,w,h-r2*2);
+		renderQuadWH(x+r2,y,w-r2*2,r2);
+		renderQuadWH(x+r2,y+h-r2,w-r2*2,r2);
+		
+		pushScissor(x, y, x+w, y+h);
+		renderArc(x+r,y+h-r,r,VGUI_PI/2, VGUI_PI);
+		renderArc(x+r,y+r,r,VGUI_PI,VGUI_PI*3/2);
+		renderArc(x+w-r,y+h-r,r,0,VGUI_PI/2);
+		renderArc(x+w-r,y+r,r,VGUI_PI*3/2,2*VGUI_PI);
+		popScissor();
+		}
+	
+	virtual void renderArc(const VGUI_COORD originX, const VGUI_COORD originY, const VGUI_COORD radius,  const float startAngle, const float endAngle) {
+		if (startAngle > endAngle) {
+			renderArc(originX, originY, radius, endAngle, startAngle);
+			return;
+			}
+		
+		#if 0
+		const VGUI_COORD midAngle = (startAngle + endAngle)/2;
+		VGUI_COORD xSa = scalef*radius*cos(startAngle);
+		VGUI_COORD ySa = scalef*radius*sin(startAngle);
+		VGUI_COORD xEa = scalef*radius*cos(endAngle);
+		VGUI_COORD yEa = scalef*radius*sin(endAngle);
+		
+		VGUI_COORD xMa = scalef*radius*cos(midAngle);
+		VGUI_COORD yMa = scalef*radius*sin(midAngle);
+		
+		VGUI_COORD x1a = scalef * originX;
+		VGUI_COORD y1a = scalef * originY;
+		
+		// Get axis aligned bounding box
+		int xMin = x1a;
+		int yMin = y1a;
+		int xMax = x1a;
+		int yMax = y1a;
+		for (float i = startAngle; i < endAngle; i+=0.1) { // ~7 degrees
+			VGUI_COORD xt = scalef*radius*cos(i);
+			VGUI_COORD yt = scalef*radius*sin(i);
+			xMin = VGUI_MIN(xMin, xt);
+			xMax = VGUI_MAX(xMax, xt);
+			yMin = VGUI_MIN(xMin, yt);
+			yMax = VGUI_MAX(xMax, yt);
+			}
+		
+		#warning scissor test me here
+		#endif
+		
+		// Easy (but not cheap way) - emit triangles
+		// TBD - row test pixels
+		VGUI_COORD xtl = originX + radius*cos(startAngle);
+		VGUI_COORD ytl = originY + radius*sin(startAngle);
+		for (float i = startAngle+0.1; i < endAngle; i+=0.1) {
+			VGUI_COORD xt = originX + radius*cos(i);
+			VGUI_COORD yt = originY + radius*sin(i);
+			renderTriangle(originX, originY, xt, yt, xtl, ytl);
+			xtl = xt;
+			ytl = yt;
+			}
+		{
+			VGUI_COORD xt = originX + radius*cos(endAngle);
+			VGUI_COORD yt = originY + radius*sin(endAngle);
+			renderTriangle(originX, originY, xt, yt, xtl, ytl);
+		}
+		}
+
+	// Sets color for painting
+	virtual void setColor (const VGUI_COLOR r, const VGUI_COLOR g, const VGUI_COLOR b, const VGUI_COLOR a) {}
+	virtual void setColorF (const float r, const float g, const float b, const float a) {}
+
+	// Clears the screen
+	virtual void clear () {}
+
+	// Sets a scissor
+	void pushScissor (const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD x2, const VGUI_COORD y2) {
+		VGUI_COORD px1 = VGUI_MIN(scalef * x1, scalef * x2);
+		VGUI_COORD px2 = VGUI_MAX(scalef * x1, scalef * x2);
+		VGUI_COORD py1 = VGUI_MIN(scalef * y1, scalef * y2);
+		VGUI_COORD py2 = VGUI_MAX(scalef * y1, scalef * y2);
+		
+		Vgui_Scissor r;
+		r.x = px1;
+		r.y = py1;
+		r.w = px2;
+		r.h = py2;
+		scissorStack.push_back(r);
+		updateScissor();
+		}
+		
+	void popScissor () {
+		scissorStack.pop_back();
+		updateScissor();
+		}
+		
+	void updateScissor() {
+		if (!scissorStack.size()) {
+			activeScissor.setToNull();
+			ctx_setScissor();
+			return;
+			}
+		VGUI_COORD xmin = VGUI_COORD_MIN_VALUE;
+		VGUI_COORD xmax = VGUI_COORD_MAX_VALUE;
+		VGUI_COORD ymin = VGUI_COORD_MIN_VALUE;
+		VGUI_COORD ymax = VGUI_COORD_MAX_VALUE;
+		for (const Vgui_Scissor & r : scissorStack) {
+			if (r.x > xmin) xmin = r.x;
+			if (r.y > ymin) ymin = r.y;
+			if (r.w < xmax) xmax = r.w;
+			if (r.h < ymax) ymax = r.h;
+			}
+		Vgui_Scissor r;
+		r.x = xmin, r.y = ymin;
+		r.w = VGUI_MAX(xmax - xmin,0), r.h = VGUI_MAX(ymax - ymin,0);
+		//std::cout << "ScissorTrue: " << r.x << " " << r.y << " " << (r.x + r.w) << " " << (r.y + r.h)<< std::endl;
+		activeScissor = r;
+		ctx_setScissor();
+		}
+		
+	virtual void ctx_setScissor() {}
+	
+	// Returns true if a widget is outside of the scissor region
+	bool isScissorCulled_element (const Vgui_Widget & vw) const {
+		if (activeScissor.isNull())
+			return false;
+		const Vgui_Scissor & r = activeScissor;
+		
+		return !(r.x <= scalef*vw.drawX && r.x+r.w >= scalef*(vw.drawX+vw.drawWidth) &&
+			r.y <= scalef*vw.drawY && r.y+r.h >= scalef*(vw.drawY+vw.drawHeight));
+		}
+		
+	bool isScissorCulled_region (const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h) const {
+		if (activeScissor.isNull())
+			return false;
+		const Vgui_Scissor & r = activeScissor;
+		
+		return !(r.x <= scalef*x && r.x+r.w >= scalef*(x+w) &&
+			r.y <= scalef*y && r.y+r.h >= scalef*(y+h));
+		}
+		
+	inline bool isScissorCulled (const Vgui_Widget & vw) const {
+		return isScissorCulled_element(vw);
+		}
+		
+	inline bool isScissorCulled (const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h) const {
+		return isScissorCulled_region(x, y, w, h);
+		}
+
+	// Renders text at a position
+	virtual void renderText (const sttfont_formatted_text & text, const VGUI_COORD x1, const VGUI_COORD y1) {}
+
+	// Returns the size of a text, from the baseline to the top
+	// eg, for the word "top" widthOut is the length from the start of t to the end of p
+	// hightOut is the height from the bottom of o to the top of t
+	virtual void getTextSize (const sttfont_formatted_text & text, VGUI_COORD & widthOut, VGUI_COORD & heightOut, sttfont_lookupHint * mHint = NULL, const VGUI_COORD * const maxWidth = NULL) const {}
+	virtual VGUI_COORD getTextWidth (const sttfont_formatted_text & text, sttfont_lookupHint * mHint = NULL, const VGUI_COORD * const maxWidth = NULL) const {
+		VGUI_COORD tw, th; getTextSize(text, tw, th, mHint, maxWidth); return tw;
+		}
+	virtual VGUI_COORD getTextHeight (const sttfont_formatted_text & text, sttfont_lookupHint * mHint = NULL) const {
+		VGUI_COORD tw, th; getTextSize(text, tw, th, mHint); return th;
+		}
+	VGUI_COORD getTextWidth_lua (const sttfont_formatted_text & text) const {
+		return getTextWidth(text);
+		}
+	VGUI_COORD getTextHeight_lua (const sttfont_formatted_text & text) const {
+		return getTextHeight(text);
+		}
+	// Converts a mouse position to a poistion within a string. Returns -1 on error
+	virtual int getTextCaretPos (const sttfont_formatted_text & text, const VGUI_COORD & relativeX, const VGUI_COORD & relativeY, sttfont_lookupHint * mHint = NULL) {
+		return -1;
+		}
+	
+	// Breaks a string into pieces such that each line is shorter than xs
+	virtual void breakString (const sttfont_formatted_text & stringIn, VGUI_VECTOR<sttfont_formatted_text> & arrOut, const VGUI_COORD xs,
+		const bool tokeniseNewLines = true, VGUI_VECTOR<vecgui::uintQuad> * breakPoints = NULL) {}
+	
+	// Returns the "nudge" in from the base line of a font
+	// By default this returns a small non-zero value. You should implment a proper value for this
+	virtual VGUI_COORD getTextLineHeight () const { return 8.0/scalef; }
+	
+	// Returns the time in seconds since program start. Needed for things such as blinking cursors
+	virtual double getTime() const {
+		return 0;
+		}
+
+	// Calls draw() on all children
+	virtual void draw (const bool forceDraw) {
+		redrawRq = false;
+		if (!mCanvas) return;
+		mCanvas->updateCachedAbsValues();
+		mCanvas->draw_recursive(forceDraw);
+		}
+
+	// Passes a mouse event to all children
+	// Returns true if the event was "consumed"
+	virtual void pollMouseState(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask) {
+		if (mCanvas) return mCanvas->pollMouseState_recursive(mouseX / scalef, mouseY / scalef, buttonMask);
+		}
+	virtual bool processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		if (mCanvas) return mCanvas->processMouseEvent_recursive(mouseX / scalef, mouseY / scalef, buttonMask, isDown);
+		return false;
+		}
+	// Processes a key event
+	virtual bool processKeyEvent(const int keyId, const bool down, const bool up, const bool hold, const bool repeat) {
+		if (mCanvas) return mCanvas->processKeyEvent_recursive(keyId, down, up, hold, repeat);
+		return false;
+		}
+	virtual bool processTextInputEvent(const VGUI_STRING & string, const Vgui_TextEditEvent evType, VGUI_STRING & textOut) {
+		if (mCanvas) return mCanvas->processTextInputEvent_recursive(string, evType, textOut);
+		return false;
+		}
+	}
+	

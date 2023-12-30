@@ -1,0 +1,289 @@
+#ifdef STTR_ENABLED
+	#insert "sttr_compat_macros.hpp"
+#endif
+
+// Elements
+// Vgui_Frame: A frame with a border
+class Vgui_Frame : public Vgui_Widget {
+public:
+	Vgui_Frame() : Vgui_Widget() {}
+		
+	virtual Vgui_Widget * clone() const {
+		Vgui_Frame * r = VGUI_NEW(Vgui_Frame);
+		r->mStyleWrap.mStyle.clearPrimatives();
+		*r = *this;
+		return baseCloneWorker(r);
+		}
+	Vgui_Frame(const VGUI_STRING & _text) : Vgui_Widget() { text.assign(_text); }
+	
+	#ifdef STTR_ENABLED
+	static void sttr_register() {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_Widget,Vgui_Frame>("Vgui_Frame")
+			.STTR_REG(Vgui_Frame,upcast)
+			.STTR_REG(Vgui_Frame,upcastC)
+		.endClass();
+		}
+	STTR_CLASS_SIG(Vgui_Frame)
+	STTR_AUTO_UPCAST(Vgui_Widget, Vgui_Frame)
+	#endif
+	
+	void draw (const bool forceDraw) {
+		if (doDraw(forceDraw))
+			wrangleStyle()->draw(*this);
+		}
+
+	/// Updates the state of this based on the state of the mouse
+	void pollMouseState(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask) {
+		scrollbar_pollMouseState(mouseX, mouseY, buttonMask);
+		}
+
+	/// Updates the state of this based on the 
+	bool processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		// Check for scroll bar
+		bool consumed = scrollbar_processMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		if (consumed) return consumed;
+		return Vgui_Widget::processMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		}
+		
+	};
+
+class Vgui_Button : public Vgui_Widget {
+public:
+	Vgui_Button() : Vgui_Widget() {
+		heightMode = Vgui_DimMode::VGUI_DIM_TEXT_ROWS; ys = 1;
+		setStyle(wrangleDefaultSkin()->Button);
+		}
+	
+	Vgui_Button(const VGUI_STRING & _text) : Vgui_Widget() { 
+		text.assign(_text);
+		heightMode = Vgui_DimMode::VGUI_DIM_TEXT_ROWS; ys = 1;
+		setStyle(wrangleDefaultSkin()->Button);
+		}
+		
+	virtual Vgui_Widget * clone() const {
+		Vgui_Button * r = VGUI_NEW(Vgui_Button);
+		r->mStyleWrap.mStyle.clearPrimatives();
+		*r = *this;
+		return baseCloneWorker(r);
+		}
+
+	#ifdef STTR_ENABLED
+	static void sttr_register() {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_Widget,Vgui_Button>("Vgui_Button")
+			.STTR_REG(Vgui_Button,upcast)
+			.STTR_REG(Vgui_Button,upcastC)
+		.endClass();
+		}
+	STTR_CLASS_SIG(Vgui_Button)
+	STTR_AUTO_UPCAST(Vgui_Widget, Vgui_Button)
+	#endif
+	
+	void draw (const bool forceDraw) {
+		if (doDraw(forceDraw))
+			wrangleStyle()->draw(*this);
+		}
+
+	void pollMouseState(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask) {
+		hoverBehaviour_pollMouseState(mouseX, mouseY, buttonMask);
+		}
+
+	bool processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		return buttonBehaviour_processMouseEvent(mouseX, mouseY, buttonMask, isDown);
+		}
+	};
+
+/// Vgui_Text - this is a litteral text element (not a textedit element) 
+class Vgui_Text : public Vgui_Widget {
+public:
+	Vgui_Text() : Vgui_Widget() {
+		widthMode = Vgui_DimMode::VGUI_DIM_TEXT; heightMode = Vgui_DimMode::VGUI_DIM_TEXT;
+		setStyle(wrangleDefaultSkin()->Text);
+		makesParentDirtyIfMadeDirty = true;
+		}
+	
+	Vgui_Text(const VGUI_STRING & _text) : Vgui_Widget() {
+		widthMode = Vgui_DimMode::VGUI_DIM_TEXT;
+		heightMode = Vgui_DimMode::VGUI_DIM_TEXT;
+		setText(_text);
+		setStyle(wrangleDefaultSkin()->Text);
+		makesParentDirtyIfMadeDirty = true;
+		}
+		
+		
+	virtual Vgui_Widget * clone() const {
+		Vgui_Text * r = VGUI_NEW(Vgui_Text);
+		r->mStyleWrap.mStyle.clearPrimatives();
+		*r = *this;
+		return baseCloneWorker(r);
+		}
+		
+		
+	#ifdef STTR_ENABLED
+	static void sttr_register() {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_Widget,Vgui_Text>("Vgui_Text")
+			.STTR_REG(Vgui_Text,upcast)
+			.STTR_REG(Vgui_Text,upcastC)
+		.endClass();
+		}
+	STTR_CLASS_SIG(Vgui_Text)
+	STTR_AUTO_UPCAST(Vgui_Widget, Vgui_Text)
+	#endif
+	
+	void draw (const bool forceDraw) {
+		//std::cout << bool(!VGUI_DO_DELTA_DRAWING) << " " << (isDirty) << " " << alwaysDraw << " " << forceDraw << std::endl;
+		
+		if (doDraw(forceDraw)) {
+			wrangleStyle()->draw(*this);
+			//std::cout << ("drawtext! [") << text.text.getString() << "]" << std::endl;
+			}
+		}
+	};
+
+class Vgui_TextEdit : public Vgui_Widget {
+public:	
+	Vgui_TextEdit() : Vgui_Widget() {
+		setStyle(wrangleDefaultSkin()->TextEdit);
+		}
+		
+	Vgui_TextEdit(const VGUI_STRING & _text) : Vgui_Widget() {
+		text.assign(_text);
+		setStyle(wrangleDefaultSkin()->TextEdit);
+		}
+	
+	virtual Vgui_Widget * clone() const {
+		Vgui_TextEdit * r = VGUI_NEW(Vgui_TextEdit);
+		r->mStyleWrap.mStyle.clearPrimatives();
+		*r = *this;
+		return baseCloneWorker(r);
+		}
+		
+			
+	#ifdef STTR_ENABLED
+	static void sttr_register() {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_Widget,Vgui_TextEdit>("Vgui_TextEdit")
+			.STTR_REG(Vgui_TextEdit,upcast)
+			.STTR_REG(Vgui_TextEdit,upcastC)
+		.endClass();
+		}
+	STTR_CLASS_SIG(Vgui_TextEdit)
+	STTR_AUTO_UPCAST(Vgui_Widget, Vgui_TextEdit)
+	#endif
+	
+	void draw (const bool forceDraw) {
+		if (isActive) {
+			markDirty();
+			}
+		if (doDraw(forceDraw))
+			wrangleStyle()->draw(*this);
+		}
+	
+	void setCaretPosBasedOnPos(VGUI_COORD mouseX, VGUI_COORD mouseY) {
+		// Do a binary search for the closest location
+		VGUI_COORD mouseTextRelX, mouseTextRelY;
+		wrangleStyle()->getTextStartPosTextEdit(*this, mouseX, mouseY, mouseTextRelX, mouseTextRelY);
+		
+		caretPosition = Vgui_ContextI::aContext->getTextCaretPos(text.text, mouseTextRelX, mouseTextRelY );
+		if (caretPosition < 0) caretPosition = 0;
+		const unsigned int tsz = text.text.size();
+		if (caretPosition > tsz) caretPosition = tsz;
+		
+		updateScrolling();
+		}
+		
+	void updateScrolling () {
+		if (!isActive) {
+			if (!VGUI_FUZZY_ZERO(xScroll)) {
+				xScroll = 0;
+				markDirty();
+				return;
+				}
+			}
+		
+		VGUI_COORD tx_caret = 0;
+		VGUI_COORD ty_caret = 0;
+		Vgui_ContextI::aContext->getTextSize(text.text.substr(0, caretPosition), tx_caret, ty_caret);
+		
+		VGUI_COORD ipeT, ipeB, ipeL, ipeR;
+		getStylePadding(ipeT, ipeB, ipeL, ipeR);
+		
+		VGUI_COORD internalWidth = drawWidth - ipeL - ipeR;
+		if (xScroll > tx_caret) xScroll = tx_caret; // to the left
+		if (xScroll < tx_caret - internalWidth) xScroll = tx_caret - internalWidth; // to the right
+		}
+		
+	void pollMouseState(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask) {
+		hoverBehaviour_pollMouseState(mouseX, mouseY, buttonMask);
+		}
+
+	bool processMouseEvent(VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown) {
+		return textAreaBehaviour_processMouseEvent(mouseX, mouseY, buttonMask, isDown, false);
+		}
+		
+	bool processTextInputEvent(const VGUI_STRING & string, const Vgui_TextEditEvent evType, VGUI_STRING & textOut) {
+		if (isActive) {
+			markDirty();
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_INSERT) {
+				VGUI_STRING insertStr = string;
+				// Strip out any forbidden chars
+				vecgui::replaceStringInPlace(insertStr, "\n", "");
+				text.insert(caretPosition, insertStr);
+				caretPosition += string.length();
+				updateScrolling();
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_BACKSPACE) {
+				unsigned int pos, size;
+				sttfont_lookupHint hint; hint.writeOut = true;
+				text.text.utf8_charsizeAt(caretPosition-1, pos, size, &hint);
+				if (size) {
+					text.text.remove(pos, size, &hint);
+					text.requestDraw();
+					}
+				if (caretPosition) caretPosition-=size;
+				updateScrolling();
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_DELETE) {
+				if (caretPosition < text.text.size()) {
+					unsigned int pos, size;
+					sttfont_lookupHint hint; hint.writeOut = true;
+					text.text.utf8_charsizeAt(caretPosition, pos, size);
+					text.text.remove(caretPosition, size);
+					text.requestDraw();
+					}
+				updateScrolling();
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_LEFT) {
+				if (caretPosition > 0) {
+					unsigned int pos, size;
+					text.text.utf8_charsizeAt(caretPosition-1, pos, size);
+					caretPosition = pos;
+					}
+				else
+					caretPosition = 0;
+				updateScrolling();
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_RIGHT) {
+				if (caretPosition < text.text.size()) {
+					unsigned int pos, size;
+					text.text.utf8_charsizeAt(caretPosition, pos, size);
+					caretPosition = pos + size;
+					}
+				updateScrolling();
+				return true;
+				}
+			if (evType == Vgui_TextEditEvent::VGUI_TEXTEDIT_COPY) {
+				textOut = text.text.getString();
+				return true;
+				}
+			}
+		return false;
+		}
+	};
+	

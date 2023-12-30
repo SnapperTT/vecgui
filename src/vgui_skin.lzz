@@ -1,0 +1,982 @@
+
+
+
+namespace Vgui_StyleStuff {
+	struct colorTint {
+		float r,g,b,a;
+		colorTint();
+		colorTint(float v) : r(v), g(v), b(v), a(1.f) {}
+		colorTint(float _r, float _g, float _b, float _a = 1.f) : r(_r), g(_g), b(_b), a(_a) {}
+		}
+	
+	struct paintInfo {
+		VGUI_COLOR r,g,b,a;
+		bool manuallySet;
+		//VGUI_COLOR r2,g2,b2,a2;
+		//bool isGradiant;
+		
+		paintInfo() : r(VGUI_COLOR_MAX), g(VGUI_COLOR_MAX), b(VGUI_COLOR_MAX), a(VGUI_COLOR_MAX), manuallySet(false) {}
+				
+		void bind(const colorTint & ct) const {
+			//std::cout << "Bind: " << (r*ct.r) << ", " << (g*ct.g) << ", " << (b*ct.b) << ", " << (a*ct.a) << std::endl;
+			Vgui_ContextI::aContext->setColor(r*ct.r,g*ct.g,b*ct.b,a*ct.a);
+			}
+		
+		void setF(float v) {
+			r = VGUI_COLOR_MAX*v;
+			g = VGUI_COLOR_MAX*v;
+			b = VGUI_COLOR_MAX*v;
+			a = VGUI_COLOR_MAX;
+			manuallySet = true;
+			}
+		void setF(float _r, float _g, float _b, float _a = 1.f) {
+			r = VGUI_COLOR_MAX*_r;
+			g = VGUI_COLOR_MAX*_g;
+			b = VGUI_COLOR_MAX*_b;
+			a = VGUI_COLOR_MAX*_a;
+			manuallySet = true;
+			}
+		};
+		
+	struct coord_element {
+		Vgui_PosMode posMode;
+		VGUI_COORD value;
+		
+		inline coord_element() : posMode(Vgui_PosMode::VGUI_POS_COORDINATE) , value(0) {}
+		inline coord_element(const Vgui_PosMode _pm, const VGUI_COORD _v) : posMode(_pm), value(_v) {}
+		};
+			
+	struct coord_formula {
+		Vgui_MaxSizeArray<coord_element, 4> mElements;	// smallvector? usually 1 or 2 items
+		VGUI_COORD cachedValue;
+		
+		inline coord_formula() : cachedValue(0) {}
+		
+		coord_formula& assign(const Vgui_PosMode posMode, const VGUI_COORD value) {
+			mElements.clear();
+			addElement(posMode, value);
+			return *this;
+			}
+		coord_formula& addElement (const Vgui_PosMode posMode, const VGUI_COORD value) {
+			coord_element ce(posMode, value);
+			mElements.push_back(ce);
+			return *this;
+			}
+		coord_formula& subElement (const Vgui_PosMode posMode, const VGUI_COORD value) {
+			coord_element ce(posMode, -value);
+			mElements.push_back(ce);
+			return *this;
+			}
+		
+		void recalcValues(const Vgui_Widget & vw, const VGUI_COORD px, const VGUI_COORD py, const VGUI_COORD pxs, const VGUI_COORD pys, const VGUI_COORD elementPadding, const bool isX) {
+			VGUI_COORD working = isX ? px : py;
+			int sz = mElements.size();
+			for (int i = 0; i < sz; ++i) {				
+				coord_element & ce = mElements[i];
+				switch (ce.posMode) {
+					case Vgui_PosMode::VGUI_POS_COORDINATE:
+						working += ce.value;
+						break;
+					case Vgui_PosMode::VGUI_POS_EM:
+						working += elementPadding*ce.value;
+						break;
+					case Vgui_PosMode::VGUI_POS_PERCENT:
+						working += (isX ? pxs : pys)*ce.value/100.0;
+						break;
+					case Vgui_PosMode::VGUI_POS_TEXT_ROWS:
+						working += ce.value*Vgui_ContextI::aContext->getTextLineHeight();
+						break;
+					case Vgui_PosMode::VGUI_POS_TEXT_LEN:
+						working += ce.value*vw.text.getWidth()/100.0;
+						break;
+						
+					}
+				}
+			
+			cachedValue = working;
+			}
+			
+		inline operator VGUI_COORD() const { return cachedValue; }
+		};
+		
+	struct coord_formula_bbox {
+		coord_formula x1,y1,x2,y2;
+		
+		
+		void recalcValues(const Vgui_Widget & vw, const VGUI_COORD px, const VGUI_COORD py, const VGUI_COORD pxs, const VGUI_COORD pys, const VGUI_COORD elementPadding) {
+			x1.recalcValues(vw, vw.drawX, vw.drawY, vw.drawWidth, vw.drawHeight, elementPadding, true);
+			y1.recalcValues(vw, vw.drawX, vw.drawY, vw.drawWidth, vw.drawHeight, elementPadding, false);
+			x2.recalcValues(vw, vw.drawX, vw.drawY, vw.drawWidth, vw.drawHeight, elementPadding, true);
+			y2.recalcValues(vw, vw.drawX, vw.drawY, vw.drawWidth, vw.drawHeight, elementPadding, false);
+			}
+			
+		};
+	
+	struct primative {
+		VGUI_VECTOR<primative*> childPrimatives;
+		paintInfo paint;
+		paintInfo paintActive;
+		paintInfo paintHover;
+		paintInfo paintHoverActive;
+		
+		#ifdef VGUI_REF_COUNT_ALLOCS
+		// define VGUI_REF_COUNT_ALLOCS to debug memory leaks
+		static int allocCount = 0;
+		#endif
+		
+		inline primative() {
+			#ifdef VGUI_REF_COUNT_ALLOCS
+				allocCount++;
+			#endif
+			}
+		virtual ~primative() {
+			#ifdef VGUI_REF_COUNT_ALLOCS
+				allocCount--;
+			#endif
+			clear();
+			}
+			
+		virtual void updateCachedValue(const Vgui_Widget & vw, const VGUI_COORD px, const VGUI_COORD py, const VGUI_COORD pxs, const VGUI_COORD pys, const VGUI_COORD elementPadding) {
+			updateCachedValue_children(vw, px, py, pxs, pys, elementPadding);
+			}
+		void updateCachedValue_children(const Vgui_Widget & vw, const VGUI_COORD px, const VGUI_COORD py, const VGUI_COORD pxs, const VGUI_COORD pys, const VGUI_COORD elementPadding) {
+			for (auto a : childPrimatives)
+				a->updateCachedValue(vw, px, py, pxs, pys, elementPadding);
+			}
+		
+		virtual primative* clone() const {
+			primative * r = VGUI_NEW(primative);
+			base_clone(r);
+			return r;
+			}
+		
+		void base_clone(primative * r) const {
+			r->paint = paint;
+			r->paintActive = paintActive;
+			r->paintHover  = paintHover;
+			r->paintHoverActive = paintHoverActive;
+			r->childPrimatives.clear();
+			for (primative* p : childPrimatives) {
+				primative* pp = p->clone();
+				r->childPrimatives.push_back(pp); 
+				}
+			}
+			
+		void bindPaint(const Vgui_Widget& vw, const colorTint & ct) const {
+			if (vw.isActive) {
+				if (vw.isHovering)
+					paintHoverActive.bind(ct);
+				else
+					paintActive.bind(ct);
+				}
+			else {
+				if (vw.isHovering)
+					paintHover.bind(ct);
+				else
+					paint.bind(ct);
+				}
+			}
+			
+			
+		virtual void draw(const Vgui_Widget& vw, const colorTint & tint) const {
+			drawChildren(vw, tint);
+			}
+			
+		void drawChildren(const Vgui_Widget& vw, const colorTint & tint) const {
+			for (primative* p : childPrimatives)
+				p->draw(vw,tint);
+			}
+		
+		void clear() {
+			for (primative* p : childPrimatives)
+				VGUI_DEL(p);
+			paint = paintInfo();
+			paintActive = paintInfo();
+			paintHover = paintInfo();
+			paintHoverActive = paintInfo();
+			}
+			
+		void fixPaint() {
+			// needs to be called after setting one of the paint variables
+			if (!paintActive.manuallySet)
+				paintActive = paint;
+			if (!paintHover.manuallySet)
+				paintHover = paint;
+			if (!paintHoverActive.manuallySet)
+				paintHoverActive = paintActive;
+				
+			for (primative* p : childPrimatives)
+				p->fixPaint();
+			}
+		};
+		
+	struct rectPrimative : public primative {
+		coord_formula x1,y1,x2,y2;
+		
+		inline rectPrimative() : primative() {}
+		~rectPrimative() {}
+		
+		primative * clone() const {
+			rectPrimative * r = VGUI_NEW(rectPrimative);
+			r->x1 = x1;
+			r->y1 = y1;
+			r->x2 = x2;
+			r->y2 = y2;
+			base_clone(r);
+			return r;
+			}
+		
+		void updateCachedValue(const Vgui_Widget & vw, const VGUI_COORD px, const VGUI_COORD py, const VGUI_COORD pxs, const VGUI_COORD pys, const VGUI_COORD elementPadding) {
+			x1.recalcValues(vw, px, py, pxs, pys, elementPadding, true);
+			y1.recalcValues(vw, px, py, pxs, pys, elementPadding, false);
+			x2.recalcValues(vw, px, py, pxs, pys, elementPadding, true);
+			y2.recalcValues(vw, px, py, pxs, pys, elementPadding, false);
+			
+			updateCachedValue_children(vw, VGUI_MIN(x1,x2), VGUI_MIN(y1,y2), VGUI_ABS(x2-x1), VGUI_ABS(y2-y1), elementPadding);
+			}
+		void draw(const Vgui_Widget& vw, const colorTint & tint) const {
+			bindPaint(vw, tint);
+			Vgui_ContextI::aContext->renderQuad(x1, y1, x2, y2);
+			drawChildren(vw, tint);
+			}
+		};
+		
+	struct triPrimative : public primative {
+		coord_formula x1,y1,x2,y2,x3,y3;
+		
+		inline triPrimative() : primative() {}
+		~triPrimative() {}
+		
+		primative * clone() const {
+			triPrimative * r = VGUI_NEW(triPrimative);
+			r->x1 = x1;
+			r->y1 = y1;
+			r->x2 = x2;
+			r->y2 = y2;
+			r->x3 = x3;
+			r->y3 = y3;
+			base_clone(r);
+			return r;
+			}
+			
+		void updateCachedValue(const Vgui_Widget & vw, const VGUI_COORD px, const VGUI_COORD py, const VGUI_COORD pxs, const VGUI_COORD pys, const VGUI_COORD elementPadding) {
+			x1.recalcValues(vw, px, py, pxs, pys, elementPadding, true);
+			y1.recalcValues(vw, px, py, pxs, pys, elementPadding, false);
+			x2.recalcValues(vw, px, py, pxs, pys, elementPadding, true);
+			y2.recalcValues(vw, px, py, pxs, pys, elementPadding, false);
+			x3.recalcValues(vw, px, py, pxs, pys, elementPadding, true);
+			y3.recalcValues(vw, px, py, pxs, pys, elementPadding, false);
+			
+			VGUI_COORD mx = VGUI_MIN(VGUI_MIN(x1,x2),x3);
+			VGUI_COORD my = VGUI_MIN(VGUI_MIN(y1,y2),y3);
+			VGUI_COORD mmx = VGUI_MAX(VGUI_MAX(x1,x2),x3);
+			VGUI_COORD mmy = VGUI_MAX(VGUI_MAX(y1,y2),y3);
+			updateCachedValue_children(vw, mx, my, mmx - mx, mmy - my, elementPadding);
+			}
+		void draw(const Vgui_Widget& vw, const colorTint & tint) const {
+			bindPaint(vw, tint);
+			Vgui_ContextI::aContext->renderTriangle(x1, y1, x2, y2, x3, y3);
+			drawChildren(vw, tint);
+			}
+		};
+	
+	}
+	
+	
+class Vgui_Style {
+public:
+	// Style info contains cached values for elements, so each element must have a unique style object 
+	VGUI_VECTOR<Vgui_StyleStuff::primative*> primatives;
+	VGUI_COORD elementPadding;
+	VGUI_COORD barWidth;
+	VGUI_COORD minHandleSize;
+	double caretBlinkPeriod;
+	double caretBlinkDutyCycle;
+	Vgui_StyleStuff::coord_formula innerPaddingT, innerPaddingB, innerPaddingL, innerPaddingR, innerPaddingB_scrollBar, innerPaddingR_scrollBar;
+	Vgui_StyleStuff::coord_formula textXSizePadding, textYSizePadding; // Extra padding for when (Vgui_Widget.widthMode == TEXT)
+	Vgui_StyleStuff::coord_formula_bbox xScrollbarBBox;
+	Vgui_StyleStuff::coord_formula_bbox yScrollbarBBox;
+	Vgui_StyleStuff::coord_formula_bbox textBBox;
+	Vgui_Alignment textAlignment;
+	VGUI_COORD activeTextXNudge, activeTextYNudge;
+	bool drawCaretWhenActive;
+	bool isCustom;
+	
+	
+	Vgui_Style () {
+		elementPadding = 2;
+		barWidth = 12;
+		minHandleSize = 6;
+		
+		caretBlinkPeriod = 0.8;
+		caretBlinkDutyCycle = 0.7; // Caret is on screen 70% of the time
+		textAlignment = Vgui_Alignment::VGUI_LEFT;
+		activeTextXNudge = 0;
+		activeTextYNudge = 0;
+		
+		drawCaretWhenActive = false;
+		isCustom = true;
+		
+			{
+			textBBox.x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			textBBox.y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			textBBox.x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+			textBBox.y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+			}
+		
+			{
+			yScrollbarBBox.x1.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_COORDINATE, barWidth);
+			yScrollbarBBox.y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			yScrollbarBBox.x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+			yScrollbarBBox.y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+			}
+			{
+			xScrollbarBBox.x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			xScrollbarBBox.y1.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_COORDINATE, barWidth);
+			xScrollbarBBox.x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+			xScrollbarBBox.y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+			}
+			
+		}
+	
+	virtual ~Vgui_Style() {
+		clearPrimatives();
+		}
+		
+	void clearPrimatives() {
+		for (Vgui_StyleStuff::primative* a : primatives) {
+			VGUI_DEL(a);
+			a = NULL;
+			}
+		primatives.clear();
+		}
+		
+	bool hasSamePrimatives(const Vgui_Style & other) const {
+		if (primatives.size() == other.primatives.size()) {
+			for (uint32_t i = 0 ; i < primatives.size(); ++i )
+				if (primatives[i] != other.primatives[i])
+					return false;
+			return true;
+			}
+		return false;
+		}
+
+	void fixPaint() {
+		for (Vgui_StyleStuff::primative* a : primatives)
+			a->fixPaint();
+		}
+		
+	Vgui_Style* clone() const {
+		Vgui_Style* r = VGUI_NEW(Vgui_Style);
+		clone_in_place(*r, false);
+		return r;
+		}
+		
+	void clone_in_place(Vgui_Style & target, const bool fullDestroyPrimitives) const {
+		if (fullDestroyPrimitives)
+			target.clearPrimatives();
+		
+		target = *this;
+		target.primatives.clear();
+		
+		target.primatives.reserve(primatives.size());
+		for (Vgui_StyleStuff::primative* a : primatives) {
+			target.primatives.push_back(a->clone());
+			}
+		}
+
+	void draw(Vgui_Widget& vw) {
+		Vgui_StyleStuff::colorTint tint(1.f);
+		for (auto a : primatives)
+			a->draw(vw, tint);
+		
+		if (!vw.text.text.isEmpty()) {
+			
+		//std::cout << "text draw: " << (textBBox.x1) << " ," <<(textBBox.y1) << "[" << ((VGUI_STRING)vw.text) << "]"<< std::endl;
+			VGUI_COORD dx = textBBox.x1;
+			VGUI_COORD dy = textBBox.y1;
+			
+			if (textAlignment == Vgui_Alignment::VGUI_RIGHT)
+				dx += (textBBox.x2-textBBox.x1) - vw.text.getWidth();
+			if (textAlignment == Vgui_Alignment::VGUI_CENTER)
+				dx += ((textBBox.x2-textBBox.x1) - vw.text.getWidth())/2;
+			
+			if (vw.isActive)
+				{dx += activeTextXNudge; dy += activeTextYNudge;}
+			
+			vw.text.draw(dx, dy);
+			if (vw.isActive && drawCaretWhenActive) {
+				drawBlinkingCaretAt(vw.text.text, vw.caretPosition, dx, dy, 0);//Vgui_ContextI::aContext->getTextLineHeight()
+				}
+			}
+		
+		commonDrawScrollBars(vw);
+		}
+		 
+	void drawBlinkingCaretAt(const sttfont_formatted_text & text, int caretPosition, const VGUI_COORD & textStartX, const VGUI_COORD & textStartY, const VGUI_COORD & textRowSz) {
+		if (fmod(Vgui_ContextI::aContext->getTime(), caretBlinkPeriod) < caretBlinkPeriod*caretBlinkDutyCycle) {
+			Vgui_ContextI::aContext->prerenderCaretString();
+			VGUI_COORD tx_caret = 0;
+			VGUI_COORD ty_caret = 0;
+			
+			Vgui_ContextI::aContext->getTextSize(text.substr(0, caretPosition), tx_caret, ty_caret);
+			Vgui_ContextI::aContext->caretString.draw(textStartX + tx_caret + Vgui_ContextI::aContext->caretKerning, textStartY + (textRowSz > 0 ? (textRowSz - ty_caret)/2 : 0));
+			}
+		}
+		  
+	// Text edit
+	virtual void getTextStartPosTextEdit(const Vgui_Widget & vw, const VGUI_COORD & relMouseX, const VGUI_COORD & relMouseY, VGUI_COORD & posOutX, VGUI_COORD & posOutY) {
+		VGUI_COORD innerPaddingT, innerPaddingB, innerPaddingL, innerPaddingR;
+		getInnerPadding(vw, innerPaddingT, innerPaddingB, innerPaddingL, innerPaddingR);
+		const VGUI_COORD ty = Vgui_ContextI::aContext->getTextLineHeight();
+		posOutX = relMouseX - (vw.drawX + innerPaddingL - vw.xScroll);
+		posOutY = relMouseY - (vw.drawY + (vw.drawHeight - ty)/2);
+		}
+	
+		
+	void updateCachedValues(const Vgui_Widget & vw) {
+		for (auto a : primatives)
+			a->updateCachedValue(vw, vw.drawX, vw.drawY, vw.drawWidth, vw.drawHeight, elementPadding );
+		innerPaddingT.recalcValues(vw, 0, 0, vw.drawWidth, vw.drawHeight, elementPadding, false);
+		innerPaddingB.recalcValues(vw, 0, 0, vw.drawWidth, vw.drawHeight, elementPadding, false);
+		innerPaddingL.recalcValues(vw, 0, 0, vw.drawWidth, vw.drawHeight, elementPadding, true);
+		innerPaddingR.recalcValues(vw, 0, 0, vw.drawWidth, vw.drawHeight, elementPadding, true);
+		innerPaddingB_scrollBar.recalcValues(vw, 0, 0, vw.drawWidth, vw.drawHeight, elementPadding, false);
+		innerPaddingR_scrollBar.recalcValues(vw, 0, 0, vw.drawWidth, vw.drawHeight, elementPadding, true);
+		
+		textXSizePadding.recalcValues(vw, 0, 0, vw.drawWidth, vw.drawHeight, elementPadding, true);
+		textYSizePadding.recalcValues(vw, 0, 0, vw.drawWidth, vw.drawHeight, elementPadding, false);
+		
+		textBBox.recalcValues(vw, vw.drawX, vw.drawY, vw.drawWidth, vw.drawHeight, elementPadding);
+		xScrollbarBBox.recalcValues(vw, vw.drawX, vw.drawY, vw.drawWidth, vw.drawHeight, elementPadding);
+		yScrollbarBBox.recalcValues(vw, vw.drawX, vw.drawY, vw.drawWidth, vw.drawHeight, elementPadding);
+		}
+	
+	void getInnerPadding(const Vgui_Widget & vw, VGUI_COORD & _innerPaddingT, VGUI_COORD & _innerPaddingB, VGUI_COORD & _innerPaddingL, VGUI_COORD & _innerPaddingR) {
+		_innerPaddingT = innerPaddingT;
+		_innerPaddingB = innerPaddingB;
+		_innerPaddingL = innerPaddingL;
+		_innerPaddingR = innerPaddingR;
+		
+		if (vw.yScrollMax > 0)
+			_innerPaddingR = innerPaddingR_scrollBar + (vw.drawX + vw.drawWidth - yScrollbarBBox.x1);
+		if (vw.xScrollMax > 0)
+			_innerPaddingB = innerPaddingB_scrollBar + (vw.drawY + vw.drawHeight - xScrollbarBBox.y1);
+		}
+		
+	// Gets the position of the scrollbar. By definition the is the thickness is barWidth
+	// scrollbarX/Y/Width/Height are for the UI Sub-element
+	// scrollbarHandleX/Y/Width/Height are for the bar that indicates the position
+	virtual void getVertScrollbarCoords(const Vgui_Widget & vw, VGUI_COORD & scrollbarX,
+			VGUI_COORD & scrollbarY, VGUI_COORD & scrollbarWidth, VGUI_COORD & scrollbarHeight,
+			VGUI_COORD & scrollbarHandleX, VGUI_COORD & scrollbarHandleY,
+			VGUI_COORD & scrollbarHandleWidth, VGUI_COORD & scrollbarHandleHeight
+			) {
+		//VGUI_COORD pt, pb, pl, pr;
+		//vw.getStylePadding( pt, pb, pl, pr);
+		
+		scrollbarX = yScrollbarBBox.x1;
+		scrollbarY = yScrollbarBBox.y1;
+		scrollbarWidth = yScrollbarBBox.x2 - yScrollbarBBox.x1;
+		scrollbarHeight = yScrollbarBBox.y2 - yScrollbarBBox.y1;
+		
+		if (vw.xScrollMax > 0)
+			scrollbarHeight -= xScrollbarBBox.y2 - xScrollbarBBox.y1;
+		
+		VGUI_COORD innerHeight = scrollbarHeight - elementPadding*2;
+		//VGUI_COORD innerWidth = scrollbarWidth - elementPadding*2;
+	
+		// Position of the bar (0.0 = begining, 1.0 = end)
+		double sPos = vw.yScrollMax > vw.drawHeight ? (vw.yScroll / VGUI_MAX(vw.yScrollMax - vw.drawHeight, 0)) : 0;
+		// Height of the bar (0.0 = infinitely small, 1.0 = same as frame)
+		double sHeight = VGUI_MIN(double(vw.drawHeight) / vw.yScrollMax, 1.0);
+		double minSHeight = double(minHandleSize) / innerHeight;
+		if (sHeight < minSHeight) sHeight = minSHeight;
+
+		VGUI_COORD grabPos = sPos * (1.0 - sHeight) * innerHeight;
+		VGUI_COORD grabHeight = sHeight * innerHeight;
+		
+		scrollbarHandleX = scrollbarX + elementPadding;
+		scrollbarHandleY = scrollbarY + elementPadding + grabPos;
+		scrollbarHandleWidth = barWidth - elementPadding * 2;
+		scrollbarHandleHeight = grabHeight;
+		}
+
+	virtual void getHorzScrollbarCoords(const Vgui_Widget & vw, VGUI_COORD & scrollbarX,
+			VGUI_COORD & scrollbarY, VGUI_COORD & scrollbarWidth, VGUI_COORD & scrollbarHeight,
+			VGUI_COORD & scrollbarHandleX, VGUI_COORD & scrollbarHandleY,
+			VGUI_COORD & scrollbarHandleWidth, VGUI_COORD & scrollbarHandleHeight
+			) {
+		VGUI_COORD pt, pb, pl, pr;
+		vw.getStylePadding( pt, pb, pl, pr);
+		
+		scrollbarX = xScrollbarBBox.x1;
+		scrollbarY = xScrollbarBBox.y1;
+		scrollbarWidth = xScrollbarBBox.x2 - xScrollbarBBox.x1;
+		scrollbarHeight = xScrollbarBBox.y2 - xScrollbarBBox.y1;
+
+		if (vw.yScrollMax > 0)
+			scrollbarWidth -= yScrollbarBBox.x2 - yScrollbarBBox.x1;
+			
+		//VGUI_COORD innerHeight = scrollbarHeight - elementPadding*2;
+		VGUI_COORD innerWidth = scrollbarWidth - elementPadding*2;
+
+		// Position of the bar (0.0 = begining, 1.0 = end)
+		double sPos = vw.xScrollMax > vw.drawWidth ? (vw.xScroll / VGUI_MAX(vw.xScrollMax - vw.drawWidth, 0)) : 0;
+		// Height of the bar (0.0 = infinitely small, 1.0 = same as frame)
+		double sHeight = VGUI_MIN(double(vw.drawWidth) / vw.xScrollMax, 1.0);
+		double minSHeight = double(minHandleSize) / innerWidth;
+		if (sHeight < minSHeight) sHeight = minSHeight;
+
+		VGUI_COORD grabPos = sPos * (1.0 - sHeight) * innerWidth;
+		VGUI_COORD grabHeight = sHeight * innerWidth;
+		
+		scrollbarHandleX = scrollbarX + elementPadding + grabPos;
+		scrollbarHandleY = scrollbarY + elementPadding;
+		scrollbarHandleHeight = barWidth - elementPadding * 2;
+		scrollbarHandleWidth = grabHeight;
+		}
+		
+	virtual void commonDrawScrollBars(const Vgui_Widget & vw) {
+		// Draw scroll bars
+		if (vw.yScrollMax > 0) {
+			VGUI_COORD scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight,
+				   scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight;
+			getVertScrollbarCoords( vw, scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight,
+						scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight);
+			
+			float hl = 1.0;
+			if (vw.isYScrollbarHovering) hl = 0.80;
+			if (vw.isYScrollbarActive)   hl = 0.75;
+			float r1 = 0.85;
+			Vgui_ContextI::aContext->setColor(vw.r*r1, vw.g*r1, vw.b*r1,vw.a);
+			Vgui_ContextI::aContext->renderQuadWH(scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight);
+			
+			r1 = 0.7*hl;
+			Vgui_ContextI::aContext->setColor(vw.r*r1, vw.g*r1, vw.b*r1, vw.a); 
+			Vgui_ContextI::aContext->renderQuadWH(scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight);
+			}
+		
+		if (vw.xScrollMax > 0) {
+			VGUI_COORD scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight,
+				   scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight;
+			getHorzScrollbarCoords( vw, scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight,
+						scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight);
+			
+			float hl = 1.0;
+			if (vw.isXScrollbarHovering) hl = 0.80;
+			if (vw.isXScrollbarActive)   hl = 0.75;
+			float r1 = 0.85;
+			Vgui_ContextI::aContext->setColor(vw.r*r1, vw.g*r1, vw.b*r1,vw.a);
+			Vgui_ContextI::aContext->renderQuadWH(scrollbarX, scrollbarY, scrollbarWidth, scrollbarHeight);
+			
+			r1 = 0.7*hl;
+			Vgui_ContextI::aContext->setColor(vw.r*r1, vw.g*r1, vw.b*r1, vw.a); 
+			Vgui_ContextI::aContext->renderQuadWH(scrollbarHandleX, scrollbarHandleY, scrollbarHandleWidth, scrollbarHandleHeight);
+			}
+		}
+	};
+
+
+class Vgui_SkinI {
+	public:
+	// Default Styles
+	Vgui_Style Frame;
+	Vgui_Style LabeledFrame;
+	Vgui_Style Button;
+	Vgui_Style Text;
+	Vgui_Style TextEdit;
+	Vgui_Style MultilineText;
+	Vgui_Style ScrollBar;
+		
+	static Vgui_SkinI defaultSkin;
+	
+	// Skin
+	Vgui_SkinI() {
+		initDefaultStyles();
+		}
+		
+	void freeDefaultStyles() {
+		Frame.clearPrimatives();
+		LabeledFrame.clearPrimatives();
+		Button.clearPrimatives();
+		Text.clearPrimatives();
+		TextEdit.clearPrimatives();
+		MultilineText.clearPrimatives();
+		ScrollBar.clearPrimatives();
+		}
+	
+	void initDefaultStyles() {
+		/////////////////////////////////////////
+		// Frame		
+		{
+		Frame.clearPrimatives();
+		
+		Frame.innerPaddingT.assign(Vgui_PosMode::VGUI_POS_EM, 3);
+		Frame.innerPaddingB.assign(Vgui_PosMode::VGUI_POS_EM, 3);
+		Frame.innerPaddingL.assign(Vgui_PosMode::VGUI_POS_EM, 3);
+		Frame.innerPaddingR.assign(Vgui_PosMode::VGUI_POS_EM, 3);
+		
+		Frame.textXSizePadding.assign(Vgui_PosMode::VGUI_POS_EM, 4);
+		
+		Frame.innerPaddingR_scrollBar.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+		Frame.innerPaddingB_scrollBar.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+		
+		Frame.xScrollbarBBox.x1.addElement(Vgui_PosMode::VGUI_POS_EM, 3);
+		Frame.xScrollbarBBox.y1.addElement(Vgui_PosMode::VGUI_POS_EM,-3);
+		Frame.xScrollbarBBox.x2.addElement(Vgui_PosMode::VGUI_POS_EM,-3);
+		Frame.xScrollbarBBox.y2.addElement(Vgui_PosMode::VGUI_POS_EM,-3);
+		
+		Frame.yScrollbarBBox.x1.addElement(Vgui_PosMode::VGUI_POS_EM,-3);
+		Frame.yScrollbarBBox.y1.addElement(Vgui_PosMode::VGUI_POS_EM, 3);
+		Frame.yScrollbarBBox.x2.addElement(Vgui_PosMode::VGUI_POS_EM,-3);
+		Frame.yScrollbarBBox.y2.addElement(Vgui_PosMode::VGUI_POS_EM,-3);
+		
+		
+		Vgui_StyleStuff::rectPrimative* rp = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+		rp->paint.setF(0.9);
+		rp->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		rp->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		rp->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+		rp->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+		
+		Frame.primatives.push_back(rp);
+		
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.7);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_EM, 2);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.75);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_EM, 2);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.65);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 2);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.6);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 2);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp->childPrimatives.push_back(rp2);
+			}
+		Frame.fixPaint();
+		Frame.isCustom = false;
+		} // Frame
+		
+		/////////////////////////////////////////
+		// Labeled Frame		
+		{
+		LabeledFrame.clearPrimatives();
+		Frame.clone_in_place(LabeledFrame, false);
+		
+		{
+		Vgui_StyleStuff::rectPrimative * rp2 = (Vgui_StyleStuff::rectPrimative*) LabeledFrame.primatives[0]->childPrimatives[0];
+		
+		rp2->y1.assign(Vgui_PosMode::VGUI_POS_TEXT_ROWS, 0.5).subElement(Vgui_PosMode::VGUI_POS_EM, 0.5);
+		rp2->y2.assign(Vgui_PosMode::VGUI_POS_TEXT_ROWS, 0.5).addElement(Vgui_PosMode::VGUI_POS_EM, 0.5);
+		rp2->x2.assign(Vgui_PosMode::VGUI_POS_EM, 3);
+		}
+
+		{
+		Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+		rp2->paint.setF(0.7);
+		rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 5).addElement(Vgui_PosMode::VGUI_POS_TEXT_LEN, 100);
+		rp2->y1.assign(Vgui_PosMode::VGUI_POS_TEXT_ROWS, 0.5).subElement(Vgui_PosMode::VGUI_POS_EM, 0.5);
+		rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+		rp2->y2.assign(Vgui_PosMode::VGUI_POS_TEXT_ROWS, 0.5).addElement(Vgui_PosMode::VGUI_POS_EM, 0.5);
+		LabeledFrame.primatives[0]->childPrimatives.push_back(rp2);
+		}
+		
+		LabeledFrame.textBBox.x1.assign(Vgui_PosMode::VGUI_POS_EM, 4);
+		LabeledFrame.textBBox.x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 4);
+			
+		((Vgui_StyleStuff::rectPrimative*) LabeledFrame.primatives[0]->childPrimatives[1])->y1.assign(Vgui_PosMode::VGUI_POS_TEXT_ROWS, 0.5).subElement(Vgui_PosMode::VGUI_POS_EM, 0.5);
+		((Vgui_StyleStuff::rectPrimative*) LabeledFrame.primatives[0]->childPrimatives[3])->y1.assign(Vgui_PosMode::VGUI_POS_TEXT_ROWS, 0.5).subElement(Vgui_PosMode::VGUI_POS_EM, 0.5);
+		
+		
+		LabeledFrame.yScrollbarBBox.y1.assign(Vgui_PosMode::VGUI_POS_TEXT_ROWS, 0.5).addElement(Vgui_PosMode::VGUI_POS_EM, 1.5);
+		
+		LabeledFrame.fixPaint();
+		LabeledFrame.isCustom = false;
+		LabeledFrame.innerPaddingT.assign(Vgui_PosMode::VGUI_POS_TEXT_ROWS, 1);
+		} // Labeled Frame
+		
+		/////////////////////////////////////////
+		// Button		
+		{
+		Button.clearPrimatives();
+		
+		Button.innerPaddingT.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		Button.innerPaddingB.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		Button.innerPaddingL.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		Button.innerPaddingR.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		
+		Button.textXSizePadding.assign(Vgui_PosMode::VGUI_POS_EM, 4);
+		
+		Vgui_StyleStuff::rectPrimative* rp = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+		float hoverMulti = 0.9;
+		float activeMulti = 0.8;
+		
+		rp->paint.setF(0.9);
+		rp->paintHover.setF(0.9*hoverMulti);
+		rp->paintActive.setF(0.9*activeMulti);
+		rp->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		rp->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		rp->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+		rp->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+		
+		Button.textAlignment = Vgui_Alignment::VGUI_CENTER;
+		Button.activeTextXNudge = 1;
+		Button.activeTextYNudge = 1;
+		Button.primatives.push_back(rp);
+		
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.65);
+			rp2->paintHover.setF(0.65*hoverMulti);
+			rp2->paintActive.setF(0.55*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.70);
+			rp2->paintHover.setF(0.70*hoverMulti);
+			rp2->paintActive.setF(0.50*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.55);
+			rp2->paintHover.setF(0.55*hoverMulti);
+			rp2->paintActive.setF(0.65*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.5);
+			rp2->paintHover.setF(0.5*hoverMulti);
+			rp2->paintActive.setF(0.7*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp->childPrimatives.push_back(rp2);
+			}
+		
+		Button.fixPaint();
+		Button.isCustom = false;
+		} // Button
+		
+		
+		/////////////////////////////////////////
+		// Text Box		
+		{
+		TextEdit.clearPrimatives();
+		
+		TextEdit.innerPaddingT.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		TextEdit.innerPaddingB.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		TextEdit.innerPaddingL.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		TextEdit.innerPaddingR.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		
+		Vgui_StyleStuff::rectPrimative* rp = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+		float hoverMulti = 0.9;
+		float activeMulti = 1.05;
+		
+		rp->paint.setF(0.95);
+		rp->paintHover.setF(0.95*hoverMulti);
+		rp->paintActive.setF(0.95*activeMulti);
+		rp->paintHoverActive.setF(0.95*activeMulti);
+		rp->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		rp->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		rp->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+		rp->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+		
+		TextEdit.drawCaretWhenActive = true;
+		TextEdit.primatives.push_back(rp);
+		
+			{
+			TextEdit.textBBox.x1.assign(Vgui_PosMode::VGUI_POS_EM, 2);
+			TextEdit.textBBox.y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			TextEdit.textBBox.x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 2);
+			TextEdit.textBBox.y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.55);
+			rp2->paintHover.setF(0.55*hoverMulti);
+			rp2->paintActive.setF(0.55*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.45);
+			rp2->paintHover.setF(0.45*hoverMulti);
+			rp2->paintActive.setF(0.45*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.75);
+			rp2->paintHover.setF(0.75*hoverMulti);
+			rp2->paintActive.setF(0.75*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.85);
+			rp2->paintHover.setF(0.85*hoverMulti);
+			rp2->paintActive.setF(0.85*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp->childPrimatives.push_back(rp2);
+			}
+		
+		TextEdit.fixPaint();
+		TextEdit.isCustom = false;
+		} // TextEdit
+		
+		/////////////////////////////////////////
+		// MultilineText
+		{
+		MultilineText.clearPrimatives();
+		
+		MultilineText.innerPaddingT.assign(Vgui_PosMode::VGUI_POS_EM, 2);
+		MultilineText.innerPaddingB.assign(Vgui_PosMode::VGUI_POS_EM, 2);
+		MultilineText.innerPaddingL.assign(Vgui_PosMode::VGUI_POS_EM, 2);
+		MultilineText.innerPaddingR.assign(Vgui_PosMode::VGUI_POS_EM, 2);
+		
+		Vgui_StyleStuff::rectPrimative* rp = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+		float hoverMulti = 0.9;
+		float activeMulti = 1.05;
+		
+		rp->paint.setF(0.95);
+		rp->paintHover.setF(0.95*hoverMulti);
+		rp->paintActive.setF(0.95*activeMulti);
+		rp->paintHoverActive.setF(0.95*activeMulti);
+		rp->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		rp->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+		rp->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+		rp->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100);
+		
+		MultilineText.drawCaretWhenActive = false; //Vgui_MultilineText handles this
+		MultilineText.primatives.push_back(rp);
+		
+		
+		MultilineText.yScrollbarBBox.x1.addElement(Vgui_PosMode::VGUI_POS_EM,-1);
+		MultilineText.yScrollbarBBox.y1.addElement(Vgui_PosMode::VGUI_POS_EM, 1);
+		MultilineText.yScrollbarBBox.x2.addElement(Vgui_PosMode::VGUI_POS_EM,-1);
+		MultilineText.yScrollbarBBox.y2.addElement(Vgui_PosMode::VGUI_POS_EM,-1);
+		
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.55);
+			rp2->paintHover.setF(0.55*hoverMulti);
+			rp2->paintActive.setF(0.55*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.45);
+			rp2->paintHover.setF(0.45*hoverMulti);
+			rp2->paintActive.setF(0.45*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.75);
+			rp2->paintHover.setF(0.75*hoverMulti);
+			rp2->paintActive.setF(0.75*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp->childPrimatives.push_back(rp2);
+			}
+			
+			{
+			Vgui_StyleStuff::rectPrimative* rp2 = VGUI_NEW(Vgui_StyleStuff::rectPrimative);
+			rp2->paint.setF(0.85);
+			rp2->paintHover.setF(0.85*hoverMulti);
+			rp2->paintActive.setF(0.85*activeMulti);
+			rp2->x1.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 1);
+			rp2->y1.assign(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->x2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp2->y2.assign(Vgui_PosMode::VGUI_POS_PERCENT, 100).subElement(Vgui_PosMode::VGUI_POS_EM, 0);
+			rp->childPrimatives.push_back(rp2);
+			}
+		
+		MultilineText.fixPaint();
+		MultilineText.isCustom = false;
+		} // MultilineText
+		}
+		
+	virtual ~Vgui_SkinI(){}
+	
+	}
+
+typedef Vgui_SkinI Vgui_DefaultSkin;

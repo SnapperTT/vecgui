@@ -1,0 +1,246 @@
+#ifdef STTR_ENABLED
+	#insert "sttr_compat_macros.hpp"
+#endif
+
+class NanoVg_Vgui_Context;
+
+struct NanoVg_Vgui_PrerenderedText : public Vgui_PrerenderedTextI {
+	//bgfx_stb_prerendered_text prt;
+	pcfc_prerendered_text prt;
+	
+	sttfont_formatted_text ft;
+	//bgfx_stb_font_cache * fc;
+	//NanoVg_Vgui_Context * ctx;
+	//NVGcontext * mNanoContext; // SDL_Renderer. You'll have to create/destroy this
+	
+	NanoVg_Vgui_PrerenderedText():Vgui_PrerenderedTextI(){
+		//ctx = ((NanoVg_Vgui_Context *)Vgui_ContextI::aContext);
+		}
+	virtual ~NanoVg_Vgui_PrerenderedText() { prt.freeTexture(); }
+		
+	void draw(const VGUI_COORD x, const VGUI_COORD y) {
+		if (!prt.width) return;
+		
+		NanoVg_Vgui_Context* ctx = ((NanoVg_Vgui_Context *)Vgui_ContextI::aContext);
+		ctx->ctx_setBgfxDrawScissor();
+		//std::cout << "NanoVg_Vgui_PrerenderedText [" << x << ", " << y << ", " << prt.width << ", " << prt.height << "] " << ft.getString() << std::endl;
+		ctx->NVG.pushSsfPrerendered(prt.handle, x, y);
+		ctx->ctx_clearBgfxDrawScissor();
+		}
+	
+	void drawWithColorMod(const VGUI_COORD x, const VGUI_COORD y, const VGUI_COLOR r, const VGUI_COLOR g, const VGUI_COLOR b, const VGUI_COLOR a = VGUI_COLOR_MAX) {
+		//fc->drawText(x,y, ft);
+		
+		NanoVg_Vgui_Context* ctx = ((NanoVg_Vgui_Context *)Vgui_ContextI::aContext);
+		ctx->ctx_setBgfxDrawScissor();
+		ctx->NVG.pushSsfPrerenderedWColorMod(prt.handle, x, y, r, g, b, a);
+		ctx->ctx_clearBgfxDrawScissor();
+		}
+		
+	VGUI_COORD getWidth() const { return prt.width; }
+	VGUI_COORD getHeight() const { return prt.height; }
+	}
+
+
+class NanoVg_Vgui_Context : public Vgui_ContextI {
+public:
+	NVGcontext * mNanoContext; // SDL_Renderer. You'll have to create/destroy this
+	NanoVgCommandBuffer NVG;
+	
+	//TTF_Font * gFont; // SDL_TTF font renderer. You'll have to create/destory this
+	//bgfx_stb_font_cache * gFont;
+	producer_consumer_font_cache * gFont; // SDL_FontCache font. SDL_FontCache caches SDL_ttf fonts to improve resource usage and perf.
+	
+	NVGcolor canvasColour;
+	NVGpaint canvasPaint;
+	bool usePaint;
+
+
+	//void nvgFlushFrame(NVGcontext*ctx) {
+	//	NVG.flushFrame();
+	//	}
+
+
+	NanoVg_Vgui_Context() : Vgui_ContextI() {
+		mNanoContext = NULL;
+		gFont = NULL;
+		usePaint = false;
+		}
+		
+	#ifdef STTR_ENABLED
+	static void sttr_register() {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_ContextI, NanoVg_Vgui_Context>("NanoVg_Vgui_Context")
+		.endClass();
+		}
+	STTR_CLASS_SIG(NanoVg_Vgui_Context)
+	#endif
+	
+	virtual Vgui_PrerenderedTextI * genPrerenderedText (const sttfont_formatted_text & str) const {
+		if (!gFont) return NULL;
+		NanoVg_Vgui_PrerenderedText * r = VGUI_NEW(NanoVg_Vgui_PrerenderedText);
+		r->ft = str;
+		gFont->renderTextToObject(&(r->prt), str);
+		return r;
+		}
+
+	// Rasterises a triangle
+	void renderTriangle (const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD x2, const VGUI_COORD y2, const VGUI_COORD x3, const VGUI_COORD y3) {
+		NVG.nvgBeginPath();
+		NVG.nvgMoveTo(x1, y1);
+		NVG.nvgLineTo(x2, y2);
+		NVG.nvgLineTo(x3, y3);
+		if (usePaint)
+			NVG.nvgFillPaint(canvasPaint);
+		else
+			NVG.nvgFillColor(canvasColour);
+		NVG.nvgFill();
+		//NVG.nvgClosePath();
+		}
+	
+	void ctx_setScissor() {
+		if (activeScissor.isNull()) {
+			NVG.nvgResetScissor();
+			return;
+			}
+		NVG.nvgScissor(activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
+		}
+		
+	void ctx_setBgfxDrawScissor() {
+		if (activeScissor.isNull()) {
+			return;
+			}
+		//std::cout << "bgfxSetViewScissor" << activeScissor.x << ", " << activeScissor.y << ", " <<  activeScissor.w << ", " <<  activeScissor.h<< std::endl;
+		NVG.ssfBgfxSetScissor(activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
+		//bgfx::setViewScissor(gFont->mViewId, activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
+		}
+		
+	void ctx_clearBgfxDrawScissor() {
+		if (activeScissor.isNull()) {
+			return;
+			}
+		NVG.ssfBgfxClearScissor();
+		}
+		
+	void setColor (const VGUI_COLOR r, const VGUI_COLOR g, const VGUI_COLOR b, const VGUI_COLOR a) {
+		canvasColour = nvgRGBA(r,g,b,a);
+		}
+		
+	void setColorF (const float r, const float g, const float b, const float a) {
+		canvasColour = nvgRGBAf(r,g,b,a);
+		}
+		
+	void prerender() {
+		if (!mCanvas) return;
+		mCanvas->prerender();
+		}
+		
+	void setGradient(const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD x2, const VGUI_COORD y2, const uint8_t r1, const uint8_t g1, const uint8_t b1, const uint8_t a1, const uint8_t r2, const uint8_t g2, const uint8_t b2, const uint8_t a2) {
+		canvasPaint = nvgLinearGradient(mNanoContext, x1, y1, x2, y2, nvgRGBA(r1, g1, b1, a1), nvgRGBA(r2, g2, b2, a2));
+		usePaint = true;
+		}
+		
+	void clearGradient() {
+		usePaint = false;
+		}
+	
+	void clear () {
+		//SDL_RenderSetClipRect(mRenderer, NULL);
+		setColor(VGUI_COLOR_MAX,VGUI_COLOR_MAX,VGUI_COLOR_MAX,VGUI_COLOR_MAX);
+		#warning how do i do this?
+		//SDL_RenderClear(mRenderer);
+		}
+	void renderQuad (const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD x2, const VGUI_COORD y2) {
+		VGUI_COORD px1 = VGUI_MIN(x1, x2);
+		VGUI_COORD px2 = VGUI_MAX(x1, x2);
+		VGUI_COORD py1 = VGUI_MIN(y1, y2);
+		VGUI_COORD py2 = VGUI_MAX(y1, y2);
+		renderQuadWH(px1, py1, px2 - px1, py2 - py1);
+		}
+	void renderQuadWH (const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD width, const VGUI_COORD height) {
+		VGUI_COORD px1 = scalef * x1;
+		VGUI_COORD py1 = scalef * y1;
+		VGUI_COORD w = scalef * width;
+		VGUI_COORD h = scalef * height;
+		
+		NVG.nvgBeginPath();
+		NVG.nvgRect (px1, py1, w, h);
+		if (usePaint)
+			NVG.nvgFillPaint(canvasPaint);
+		else
+			NVG.nvgFillColor(canvasColour);
+		NVG.nvgFill();
+		}
+		
+	void renderArc(const VGUI_COORD originX, const VGUI_COORD originY, const VGUI_COORD radius,  const float startAngle, const float endAngle) {
+		NVG.nvgBeginPath();
+		NVG.nvgMoveTo(originX, originY);
+		NVG.nvgArc (originX, originY, radius, startAngle, endAngle, 2); // NVGWinding::NVG_CCW == 1
+		if (usePaint)
+			NVG.nvgFillPaint(canvasPaint);
+		else
+			NVG.nvgFillColor(canvasColour);
+		NVG.nvgFill();
+		}
+	
+	void renderRoundedQuadWH (const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD r) {
+		NVG.nvgBeginPath();
+		NVG.nvgRoundedRect (x, y, w, h, r);
+		if (usePaint)
+			NVG.nvgFillPaint(canvasPaint);
+		else
+			NVG.nvgFillColor(canvasColour);
+		NVG.nvgFill();
+		}
+	
+	const static uint64_t cZero = SDL_GetPerformanceCounter();
+	const static double pefFq = SDL_GetPerformanceFrequency();
+	double getTime() const {
+		return (SDL_GetPerformanceCounter() - cZero)/pefFq;
+		}
+	
+	// Text functions
+	virtual void renderText (const sttfont_formatted_text & text, const VGUI_COORD x1, const VGUI_COORD y1) {
+		if (!gFont) return;
+		//gFont->drawText(scalef*x1, scalef*y1, text);
+		pcfc_handle h = gFont->pushText(scalef*x1, scalef*y1, text);
+		
+		ctx_setBgfxDrawScissor();		
+		NVG.pushSsfText(h);
+		ctx_clearBgfxDrawScissor();
+		}
+	virtual void getTextSize (const sttfont_formatted_text & text, VGUI_COORD & widthOut, VGUI_COORD & heightOut, sttfont_lookupHint * mHint = NULL, const VGUI_COORD * const maxWidth = NULL) const {
+		if (!gFont) return;
+		int w, h;
+		int maxWidthi = maxWidth ? *maxWidth : 0;
+		gFont->getTextSize(w, h, text, mHint, maxWidthi ? &maxWidthi : NULL);
+		widthOut = w/scalef;
+		heightOut = h/scalef;
+		}
+	virtual VGUI_COORD getTextWidth (const sttfont_formatted_text & text, sttfont_lookupHint * mHint = NULL, const VGUI_COORD * const maxWidth = NULL) const {
+		if (!gFont) return 0;		
+		int widthOut, heightOut;
+		int maxWidthi = maxWidth ? *maxWidth : 0;
+		gFont->getTextSize(widthOut, heightOut, text, mHint, maxWidthi ? &maxWidthi : NULL);
+		return widthOut / scalef;
+		}
+	virtual VGUI_COORD getTextHeight (const sttfont_formatted_text & text, sttfont_lookupHint * mHint = NULL) const {
+		if (!gFont) return 0;
+		return gFont->getTextHeight(text) / scalef;
+		}
+	virtual VGUI_COORD getTextLineHeight() const {
+		if (!gFont) return Vgui_ContextI::getTextLineHeight();
+		return gFont->getScaledRowSize() / scalef;
+		}
+		
+	virtual int getTextCaretPos (const sttfont_formatted_text & text, const VGUI_COORD & relativeX, const VGUI_COORD & relativeY, sttfont_lookupHint * mHint = NULL) {
+		if (!gFont) return -1;
+		return gFont->getCaretPos(text, relativeX * scalef, relativeY * scalef, mHint);
+		}
+		
+	void breakString (const sttfont_formatted_text & stringIn, VGUI_VECTOR<sttfont_formatted_text> & arrOut, const VGUI_COORD xs,
+		const bool tokeniseNewLines = true, VGUI_VECTOR<vecgui::uintQuad> * breakPoints = NULL) {
+		vecgui::breakString_worker(gFont, stringIn, arrOut, xs, tokeniseNewLines, breakPoints);	
+		}
+	
+	}

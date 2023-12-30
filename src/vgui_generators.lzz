@@ -1,0 +1,53 @@
+
+enum Vgui_SimpleFormElementType {
+	BUTTON, TEXT_EDIT	// WRONG! should be data focuesd!
+	};
+
+class Vgui_SimpleForm : public Vgui_Widget {
+public:
+	struct Element {
+		VGUI_STRING label;
+		VGUI_STRING tag;
+		Vgui_SimpleFormElementType elementType;
+		};
+		
+	VGUI_VECTOR<Vgui_SimpleForm::Element> mElements;
+	
+	~Vgui_SimpleForm() {}
+	
+	
+	void doGeneration() {
+		
+		for (auto e : mElements) {
+			Vgui_Widget * W = NULL;
+			if (e.elementType == Vgui_SimpleFormElementType::BUTTON) {
+				W = VGUI_NEW(Vgui_Button);
+				}
+			if (e.elementType == Vgui_SimpleFormElementType::TEXT_EDIT) {
+				W = VGUI_NEW(Vgui_TextEdit);
+				}
+			
+			if (W)
+				addChild(W);
+			}
+		}
+		
+		
+	
+	};
+	
+	
+int foo;
+double bar;
+
+Vgui_SimpleForm() {
+	{ "thing", &foo },
+	{ "other", &bar }
+	
+	}
+	
+
+class Vgui_SimpleMessageBox {
+	VGUI_STRING message;
+	VGUI_STRING buttonLabel;
+	}

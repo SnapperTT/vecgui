@@ -1,0 +1,15 @@
+**
+!*.md
+!.gitignore
+!.gitattributes
+!*.sh
+!*.lzz
+!*.hpp
+!*/
+!src/*.lzz
+!src/*.hpp
+!src/Makefile
+!vgui_sttr/*
+!*.h
+!*.cpp
+
