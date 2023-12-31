@@ -153,7 +153,6 @@ void Vgui_Cleanup() {
 
 #ifdef STTR_ENABLED
 void vgui_sttr_register() {
-	vgui_sttr_register
 	Vgui_ContextI::sttr_register ();
 	SDL_Vgui_Context::sttr_register ();
 	Vgui_Widget::sttr_register ();
