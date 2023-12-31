@@ -1439,6 +1439,9 @@ struct Vgui_TextSubWidget
   void insert (size_t const caretPosition, VGUI_STRING const & t);
   void remove (size_t const caretPosition, size_t const num);
   operator VGUI_STRING () const;
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
 };
 class Vgui_ContextI
 {
@@ -1455,6 +1458,9 @@ public:
   VGUI_COORD caretKerning;
   Vgui_ContextI ();
   virtual ~ Vgui_ContextI ();
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
   static Vgui_ContextI * aContext;
   void bind ();
   void setCanvas (Vgui_Widget * _child);
@@ -1674,6 +1680,21 @@ void Vgui_TextSubWidget::remove (size_t const caretPosition, size_t const num)
 		}
 Vgui_TextSubWidget::operator VGUI_STRING () const
                                      { return text.getString(); }
+void Vgui_TextSubWidget::sttr_register ()
+                                    {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.beginClass<Vgui_TextSubWidget>("Vgui_TextSubWidget")
+			.STTR_REGF(Vgui_TextSubWidget,text,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_TextSubWidget,r,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_TextSubWidget,g,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_TextSubWidget,b,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_TextSubWidget,a,VGUI_PERSISTANT)
+		.endClass();
+		}
+void * Vgui_TextSubWidget::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < Vgui_TextSubWidget > ( ) ; }
+char const * const Vgui_TextSubWidget::sttr_getClassName () const
+        { return sttr :: getTypeName < Vgui_TextSubWidget > ( ) ; }
 Vgui_ContextI::Vgui_ContextI ()
   : mCanvas (NULL), mSkin (NULL), canvasXSz (100), canvasYSz (100), scalef (1.0f), redrawRq (true), caretKerning (0)
                                                                                                                             { 
@@ -1686,6 +1707,55 @@ Vgui_ContextI::~ Vgui_ContextI ()
 		mCanvas = NULL;
 		if (aContext == this) aContext = NULL;
 		}
+void Vgui_ContextI::sttr_register ()
+                                    {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.beginClass<Vgui_ContextI>("Vgui_ContextI")
+			.STTR_REG(Vgui_ContextI,mCanvas)
+			.STTR_REG(Vgui_ContextI,canvasXSz)
+			.STTR_REG(Vgui_ContextI,canvasYSz)
+			.STTR_REG(Vgui_ContextI,scalef)
+			.STTR_REG(Vgui_ContextI,redrawRq)
+
+			.STTR_REG(Vgui_ContextI,bind)
+			.STTR_REG(Vgui_ContextI,setCanvas)
+			.STTR_REG(Vgui_ContextI,requestRedraw)
+			.STTR_REG(Vgui_ContextI,fetchElement)
+			.STTR_REG(Vgui_ContextI,fetchBool)
+			.STTR_REG(Vgui_ContextI,fetchDouble)
+			.STTR_REG(Vgui_ContextI,fetchText)
+			.STTR_REG(Vgui_ContextI,genPrerenderedText)
+			.STTR_REG(Vgui_ContextI,resizeCanvas)
+			.STTR_REG(Vgui_ContextI,renderTriangle)
+			.STTR_REG(Vgui_ContextI,renderQuad)
+			.STTR_REG(Vgui_ContextI,renderQuadWH)
+			.STTR_REG(Vgui_ContextI,setColor)
+			.STTR_REG(Vgui_ContextI,setColorF)
+			.STTR_REG(Vgui_ContextI,clear)
+			.STTR_REG(Vgui_ContextI,pushScissor)
+			.STTR_REG(Vgui_ContextI,popScissor)
+			.STTR_REG(Vgui_ContextI,isScissorCulled_element)
+			.STTR_REG(Vgui_ContextI,isScissorCulled_region)
+			.STTR_REG(Vgui_ContextI,renderText)
+			//.STTR_REG(Vgui_ContextI,getTextSize)
+			.STTR_REG(Vgui_ContextI,getTextWidth_lua)
+			.STTR_REG(Vgui_ContextI,getTextHeight_lua)
+			.STTR_REG(Vgui_ContextI,getTextCaretPos)
+			.STTR_REG(Vgui_ContextI,getTextLineHeight)
+			.STTR_REG(Vgui_ContextI,getTime)
+			.STTR_REG(Vgui_ContextI,draw)
+			.STTR_REG(Vgui_ContextI,pollMouseState)
+			.STTR_REG(Vgui_ContextI,processMouseEvent)
+			.STTR_REG(Vgui_ContextI,processKeyEvent)
+			//.STTR_REG(Vgui_ContextI,processTextInputEvent)
+			.STTR_REG(Vgui_ContextI,setGradient)
+			.STTR_REG(Vgui_ContextI,clearGradient)
+		.endClass();
+		}
+void * Vgui_ContextI::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < Vgui_ContextI > ( ) ; }
+char const * const Vgui_ContextI::sttr_getClassName () const
+        { return sttr :: getTypeName < Vgui_ContextI > ( ) ; }
 Vgui_ContextI * Vgui_ContextI::aContext = NULL;
 void Vgui_ContextI::bind ()
                     { Vgui_ContextI::aContext = this; }
@@ -1980,6 +2050,9 @@ class Vgui_StyleWrap
 {
 public:
   Vgui_Style mStyle;
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
 };
 class Vgui_Widget
 {
@@ -2043,6 +2116,9 @@ protected:
   Vgui_Widget * baseCloneWorker (Vgui_Widget * r) const;
 public:
   virtual ~ Vgui_Widget ();
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
   void purgeChildren ();
   void repairLinks ();
   Vgui_Style * wrangleStyle () const;
@@ -2147,6 +2223,18 @@ void Vgui_OptionalEventCallbackI::onKeyEvent (int const keyId, bool const down, 
                                                                                                              { if (CBI && W) CBI->onKeyEvent(W, keyId, down, up, hold, repeat); }
 void Vgui_OptionalEventCallbackI::onTextInputEvent (VGUI_STRING const & string, Vgui_TextEditEvent const evType, VGUI_STRING & textOut)
                                                                                                                   { if (CBI && W) CBI->onTextInputEvent(W, string, evType, textOut); }
+void Vgui_StyleWrap::sttr_register ()
+                                    {
+		// Needs custom encode/decode
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.beginClass<Vgui_StyleWrap>("Vgui_StyleWrap")
+			.STTR_REGF(Vgui_StyleWrap, mStyle, VGUI_PERSISTANT | VGUI_OWNS_POINTER)
+		.endClass();
+		}
+void * Vgui_StyleWrap::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < Vgui_StyleWrap > ( ) ; }
+char const * const Vgui_StyleWrap::sttr_getClassName () const
+        { return sttr :: getTypeName < Vgui_StyleWrap > ( ) ; }
 Vgui_Widget::Vgui_Widget ()
   : mParent (NULL), mEventCallback (NULL)
                                                             {
@@ -2221,6 +2309,120 @@ Vgui_Widget::~ Vgui_Widget ()
 		//mStyleWrap.clear();
 		purgeChildren();
 		}
+void Vgui_Widget::sttr_register ()
+                                    {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.beginClass<Vgui_Widget>("Vgui_Widget")
+			.STTR_REG(Vgui_Widget,mParent)
+			.STTR_REG(Vgui_Widget,mStyleWrap)
+			.STTR_REGF(Vgui_Widget,tag,VGUI_PERSISTANT | VGUI_ZT)
+			
+			.STTR_REGF(Vgui_Widget,x,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,y,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,xs,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,ys,VGUI_PERSISTANT)
+			
+			.STTR_REGF(Vgui_Widget,r,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,g,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,b,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,a,VGUI_PERSISTANT)
+			
+			.STTR_REGF(Vgui_Widget,innerPaddingT,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,innerPaddingB,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,innerPaddingL,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,innerPaddingR,VGUI_PERSISTANT | VGUI_ZT)
+			
+			.STTR_REGF(Vgui_Widget,outerPaddingT,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,outerPaddingB,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,outerPaddingL,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,outerPaddingR,VGUI_PERSISTANT | VGUI_ZT)
+			
+			.STTR_REGF(Vgui_Widget,xScroll,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,xScrollMax,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,yScroll,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,yScrollMax,VGUI_PERSISTANT | VGUI_ZT)
+			
+			.STTR_REGF(Vgui_Widget,horizontalAlignment,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,verticalAlignment,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,widthMode,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,heightMode,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,xPosMode,VGUI_PERSISTANT)
+			.STTR_REGF(Vgui_Widget,yPosMode,VGUI_PERSISTANT)
+			
+			.STTR_REGF(Vgui_Widget,text,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REGF(Vgui_Widget,value,VGUI_PERSISTANT | VGUI_ZT)
+			.STTR_REG(Vgui_Widget,caretPosition)
+			.STTR_REG(Vgui_Widget,caretSelectionStart)
+			
+			.STTR_REG(Vgui_Widget,isActive)
+			.STTR_REG(Vgui_Widget,isHovering)
+			.STTR_REG(Vgui_Widget,isXScrollbarActive)
+			.STTR_REG(Vgui_Widget,isXScrollbarHovering)
+			.STTR_REG(Vgui_Widget,isYScrollbarActive)
+			.STTR_REG(Vgui_Widget,isYScrollbarHovering)
+			.STTR_REG(Vgui_Widget,isAutoscrolling)
+			
+			.STTR_REG(Vgui_Widget,isDirty)
+			.STTR_REG(Vgui_Widget,drawX)
+			.STTR_REG(Vgui_Widget,drawY)
+			.STTR_REG(Vgui_Widget,drawWidth)
+			.STTR_REG(Vgui_Widget,drawHeight)
+			
+			.STTR_REGF(Vgui_Widget,mChildren,VGUI_PERSISTANT | VGUI_OWNS_POINTER | VGUI_ZT)
+		
+			// Methods
+			.STTR_REG(Vgui_Widget,purgeChildren)
+			.STTR_REG(Vgui_Widget,repairLinks)
+		//	.STTR_REG(Vgui_Widget,wrangleSkin) 
+		//	.STTR_REG(Vgui_Widget,getStylePadding)
+			.STTR_REG(Vgui_Widget,getRoot)
+			.STTR_REG(Vgui_Widget,addChild)
+			.STTR_REG(Vgui_Widget,addChildTagged)
+			.STTR_REG(Vgui_Widget,removeChild)
+			.STTR_REG(Vgui_Widget,disableRecursive)
+			.STTR_REG(Vgui_Widget,setPos)
+			.STTR_REG(Vgui_Widget,setSize)
+			.STTR_REG(Vgui_Widget,setPosAndSize)
+			.STTR_REG(Vgui_Widget,setDimMode)
+			.STTR_REG(Vgui_Widget,setDimModeBoth)
+			.STTR_REG(Vgui_Widget,setPosMode)
+			.STTR_REG(Vgui_Widget,setPosModeBoth)
+			.STTR_REG(Vgui_Widget,setWidth)
+			.STTR_REG(Vgui_Widget,setHeight)
+			.STTR_REG(Vgui_Widget,setInnerPadding)
+			.STTR_REG(Vgui_Widget,setOuterPadding)
+			.STTR_REG(Vgui_Widget,setInnerPaddingAll)
+			.STTR_REG(Vgui_Widget,setOuterPaddingAll)
+			.STTR_REG(Vgui_Widget,setText)
+			.STTR_REG(Vgui_Widget,getText)
+			.STTR_REG(Vgui_Widget,setColor)
+			.STTR_REG(Vgui_Widget,setColorF)
+			.STTR_REG(Vgui_Widget,setAlignment)
+			.STTR_REG(Vgui_Widget,setAlignmentH)
+			.STTR_REG(Vgui_Widget,setAlignmentV)
+			.STTR_REG(Vgui_Widget,setTag)
+			.STTR_REG(Vgui_Widget,updateCachedAbsValues)
+			.STTR_REG(Vgui_Widget,getByTag)
+			.STTR_REG(Vgui_Widget,draw)
+			.STTR_REG(Vgui_Widget,draw_recursive)
+			.STTR_REG(Vgui_Widget,pollMouseState)
+			.STTR_REG(Vgui_Widget,processMouseEvent)
+			.STTR_REG(Vgui_Widget,processKeyEvent)
+			//.STTR_REG(Vgui_Widget,processTextInputEvent)
+			.STTR_REG(Vgui_Widget,pollMouseState_recursive)
+			.STTR_REG(Vgui_Widget,processMouseEvent_recursive)
+			.STTR_REG(Vgui_Widget,processKeyEvent_recursive)
+			//.STTR_REG(Vgui_Widget,processTextInputEvent_recursive)
+			.STTR_REG(Vgui_Widget,isMouseInRegion)
+			.STTR_REG(Vgui_Widget,isMouseInElement)
+			.STTR_REG(Vgui_Widget,setCaretPosBasedOnPos)
+			.STTR_REG(Vgui_Widget,setCaretPosToEnd) 
+		.endClass();
+		}
+void * Vgui_Widget::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < Vgui_Widget > ( ) ; }
+char const * const Vgui_Widget::sttr_getClassName () const
+        { return sttr :: getTypeName < Vgui_Widget > ( ) ; }
 void Vgui_Widget::purgeChildren ()
                              {
 		for (unsigned int i = 0 ; i < mChildren.size(); ++i) {
@@ -2897,6 +3099,11 @@ public:
   Vgui_Frame ();
   virtual Vgui_Widget * clone () const;
   Vgui_Frame (VGUI_STRING const & _text);
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
+  static Vgui_Frame * upcast (Vgui_Widget * B);
+  static Vgui_Frame const * const upcastC (Vgui_Widget const * const B);
   void draw (bool const forceDraw);
   void pollMouseState (VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask);
   bool processMouseEvent (VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown);
@@ -2907,6 +3114,11 @@ public:
   Vgui_Button ();
   Vgui_Button (VGUI_STRING const & _text);
   virtual Vgui_Widget * clone () const;
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
+  static Vgui_Button * upcast (Vgui_Widget * B);
+  static Vgui_Button const * const upcastC (Vgui_Widget const * const B);
   void draw (bool const forceDraw);
   void pollMouseState (VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask);
   bool processMouseEvent (VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown);
@@ -2917,6 +3129,11 @@ public:
   Vgui_Text ();
   Vgui_Text (VGUI_STRING const & _text);
   virtual Vgui_Widget * clone () const;
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
+  static Vgui_Text * upcast (Vgui_Widget * B);
+  static Vgui_Text const * const upcastC (Vgui_Widget const * const B);
   void draw (bool const forceDraw);
 };
 class Vgui_TextEdit : public Vgui_Widget
@@ -2925,6 +3142,11 @@ public:
   Vgui_TextEdit ();
   Vgui_TextEdit (VGUI_STRING const & _text);
   virtual Vgui_Widget * clone () const;
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
+  static Vgui_TextEdit * upcast (Vgui_Widget * B);
+  static Vgui_TextEdit const * const upcastC (Vgui_Widget const * const B);
   void draw (bool const forceDraw);
   void setCaretPosBasedOnPos (VGUI_COORD mouseX, VGUI_COORD mouseY);
   void updateScrolling ();
@@ -2957,6 +3179,22 @@ Vgui_Widget * Vgui_Frame::clone () const
 Vgui_Frame::Vgui_Frame (VGUI_STRING const & _text)
   : Vgui_Widget ()
                                                               { text.assign(_text); }
+void Vgui_Frame::sttr_register ()
+                                    {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_Widget,Vgui_Frame>("Vgui_Frame")
+			.STTR_REG(Vgui_Frame,upcast)
+			.STTR_REG(Vgui_Frame,upcastC)
+		.endClass();
+		}
+void * Vgui_Frame::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < Vgui_Frame > ( ) ; }
+char const * const Vgui_Frame::sttr_getClassName () const
+        { return sttr :: getTypeName < Vgui_Frame > ( ) ; }
+Vgui_Frame * Vgui_Frame::upcast (Vgui_Widget * B)
+        { if ( sttr :: isType < Vgui_Frame > ( * B ) ) return ( Vgui_Frame * ) B ; return NULL ; }
+Vgui_Frame const * const Vgui_Frame::upcastC (Vgui_Widget const * const B)
+        { if ( sttr :: isType < Vgui_Frame > ( * B ) ) return ( const Vgui_Frame * const ) B ; return NULL ; }
 void Vgui_Frame::draw (bool const forceDraw)
                                          {
 		if (doDraw(forceDraw))
@@ -2993,6 +3231,22 @@ Vgui_Widget * Vgui_Button::clone () const
 		*r = *this;
 		return baseCloneWorker(r);
 		}
+void Vgui_Button::sttr_register ()
+                                    {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_Widget,Vgui_Button>("Vgui_Button")
+			.STTR_REG(Vgui_Button,upcast)
+			.STTR_REG(Vgui_Button,upcastC)
+		.endClass();
+		}
+void * Vgui_Button::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < Vgui_Button > ( ) ; }
+char const * const Vgui_Button::sttr_getClassName () const
+        { return sttr :: getTypeName < Vgui_Button > ( ) ; }
+Vgui_Button * Vgui_Button::upcast (Vgui_Widget * B)
+        { if ( sttr :: isType < Vgui_Button > ( * B ) ) return ( Vgui_Button * ) B ; return NULL ; }
+Vgui_Button const * const Vgui_Button::upcastC (Vgui_Widget const * const B)
+        { if ( sttr :: isType < Vgui_Button > ( * B ) ) return ( const Vgui_Button * const ) B ; return NULL ; }
 void Vgui_Button::draw (bool const forceDraw)
                                          {
 		if (doDraw(forceDraw))
@@ -3029,6 +3283,22 @@ Vgui_Widget * Vgui_Text::clone () const
 		*r = *this;
 		return baseCloneWorker(r);
 		}
+void Vgui_Text::sttr_register ()
+                                    {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_Widget,Vgui_Text>("Vgui_Text")
+			.STTR_REG(Vgui_Text,upcast)
+			.STTR_REG(Vgui_Text,upcastC)
+		.endClass();
+		}
+void * Vgui_Text::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < Vgui_Text > ( ) ; }
+char const * const Vgui_Text::sttr_getClassName () const
+        { return sttr :: getTypeName < Vgui_Text > ( ) ; }
+Vgui_Text * Vgui_Text::upcast (Vgui_Widget * B)
+        { if ( sttr :: isType < Vgui_Text > ( * B ) ) return ( Vgui_Text * ) B ; return NULL ; }
+Vgui_Text const * const Vgui_Text::upcastC (Vgui_Widget const * const B)
+        { if ( sttr :: isType < Vgui_Text > ( * B ) ) return ( const Vgui_Text * const ) B ; return NULL ; }
 void Vgui_Text::draw (bool const forceDraw)
                                          {
 		//std::cout << bool(!VGUI_DO_DELTA_DRAWING) << " " << (isDirty) << " " << alwaysDraw << " " << forceDraw << std::endl;
@@ -3056,6 +3326,22 @@ Vgui_Widget * Vgui_TextEdit::clone () const
 		*r = *this;
 		return baseCloneWorker(r);
 		}
+void Vgui_TextEdit::sttr_register ()
+                                    {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_Widget,Vgui_TextEdit>("Vgui_TextEdit")
+			.STTR_REG(Vgui_TextEdit,upcast)
+			.STTR_REG(Vgui_TextEdit,upcastC)
+		.endClass();
+		}
+void * Vgui_TextEdit::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < Vgui_TextEdit > ( ) ; }
+char const * const Vgui_TextEdit::sttr_getClassName () const
+        { return sttr :: getTypeName < Vgui_TextEdit > ( ) ; }
+Vgui_TextEdit * Vgui_TextEdit::upcast (Vgui_Widget * B)
+        { if ( sttr :: isType < Vgui_TextEdit > ( * B ) ) return ( Vgui_TextEdit * ) B ; return NULL ; }
+Vgui_TextEdit const * const Vgui_TextEdit::upcastC (Vgui_Widget const * const B)
+        { if ( sttr :: isType < Vgui_TextEdit > ( * B ) ) return ( const Vgui_TextEdit * const ) B ; return NULL ; }
 void Vgui_TextEdit::draw (bool const forceDraw)
                                          {
 		if (isActive) {
@@ -3224,6 +3510,11 @@ public:
   virtual Vgui_Widget * clone () const;
   virtual ~ Vgui_MultilineText ();
   void clearCache ();
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
+  static Vgui_MultilineText * upcast (Vgui_Widget * B);
+  static Vgui_MultilineText const * const upcastC (Vgui_Widget const * const B);
   void getStylePadding (VGUI_COORD & _innerPaddingT, VGUI_COORD & _innerPaddingB, VGUI_COORD & _innerPaddingL, VGUI_COORD & _innerPaddingR) const;
   textChunk * getOrGenActiveChunk ();
   void addLine (sttfont_formatted_text const & str);
@@ -3561,6 +3852,25 @@ void Vgui_MultilineText::clearCache ()
 		iChunkStartHint = 0;
 		iChunkEndHint = 0;
 		}
+void Vgui_MultilineText::sttr_register ()
+                                    {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_Widget,Vgui_MultilineText>("Vgui_MultilineText")
+			.STTR_REG(Vgui_MultilineText,addLine)
+			.STTR_REG(Vgui_MultilineText,upcast)
+			.STTR_REG(Vgui_MultilineText,upcastC)
+		.endClass();
+		//std::cout << "sttr_register Vgui_MultilineText" <<  std::endl;
+		//exit(1);
+		}
+void * Vgui_MultilineText::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < Vgui_MultilineText > ( ) ; }
+char const * const Vgui_MultilineText::sttr_getClassName () const
+        { return sttr :: getTypeName < Vgui_MultilineText > ( ) ; }
+Vgui_MultilineText * Vgui_MultilineText::upcast (Vgui_Widget * B)
+        { if ( sttr :: isType < Vgui_MultilineText > ( * B ) ) return ( Vgui_MultilineText * ) B ; return NULL ; }
+Vgui_MultilineText const * const Vgui_MultilineText::upcastC (Vgui_Widget const * const B)
+        { if ( sttr :: isType < Vgui_MultilineText > ( * B ) ) return ( const Vgui_MultilineText * const ) B ; return NULL ; }
 void Vgui_MultilineText::getStylePadding (VGUI_COORD & _innerPaddingT, VGUI_COORD & _innerPaddingB, VGUI_COORD & _innerPaddingL, VGUI_COORD & _innerPaddingR) const
                                                                                                                                                        {
 		wrangleStyle()->getInnerPadding( *this, _innerPaddingT, _innerPaddingB, _innerPaddingL, _innerPaddingR);

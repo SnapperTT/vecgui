@@ -49,6 +49,9 @@ public:
   };
   SDL_Vgui_Gradiant activeGradiant;
   SDL_Vgui_Context ();
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
   virtual Vgui_PrerenderedTextI * genPrerenderedText (sttfont_formatted_text const & str) const;
   static int renderTriangle_edgeTest (int x1, int y1, int x2, int y2, int x3, int y3);
   void setGradient (VGUI_COORD const x1, VGUI_COORD const y1, VGUI_COORD const x2, VGUI_COORD const y2, uint8_t const r1, uint8_t const g1, uint8_t const b1, uint8_t const a1, uint8_t const r2, uint8_t const g2, uint8_t const b2, uint8_t const a2);
@@ -148,6 +151,16 @@ SDL_Vgui_Context::SDL_Vgui_Context ()
 		db = 0;
 		da = 0;
 		}
+void SDL_Vgui_Context::sttr_register ()
+                                    {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_ContextI, SDL_Vgui_Context>("SDL_Vgui_Context")
+		.endClass();
+		}
+void * SDL_Vgui_Context::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < SDL_Vgui_Context > ( ) ; }
+char const * const SDL_Vgui_Context::sttr_getClassName () const
+        { return sttr :: getTypeName < SDL_Vgui_Context > ( ) ; }
 Vgui_PrerenderedTextI * SDL_Vgui_Context::genPrerenderedText (sttfont_formatted_text const & str) const
                                                                                                       {
 		if (!gFont) return NULL;

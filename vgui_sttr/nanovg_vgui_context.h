@@ -27,6 +27,9 @@ public:
   NVGpaint canvasPaint;
   bool usePaint;
   NanoVg_Vgui_Context ();
+  static void sttr_register ();
+  virtual void * sttr_getClassSig () const;
+  virtual char const * const sttr_getClassName () const;
   virtual Vgui_PrerenderedTextI * genPrerenderedText (sttfont_formatted_text const & str) const;
   void renderTriangle (VGUI_COORD const x1, VGUI_COORD const y1, VGUI_COORD const x2, VGUI_COORD const y2, VGUI_COORD const x3, VGUI_COORD const y3);
   void ctx_setScissor ();
@@ -102,6 +105,16 @@ NanoVg_Vgui_Context::NanoVg_Vgui_Context ()
 		gFont = NULL;
 		usePaint = false;
 		}
+void NanoVg_Vgui_Context::sttr_register ()
+                                    {
+		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+		R.deriveClass<Vgui_ContextI, NanoVg_Vgui_Context>("NanoVg_Vgui_Context")
+		.endClass();
+		}
+void * NanoVg_Vgui_Context::sttr_getClassSig () const
+        { return ( void * ) sttr :: getTypeSignature < NanoVg_Vgui_Context > ( ) ; }
+char const * const NanoVg_Vgui_Context::sttr_getClassName () const
+        { return sttr :: getTypeName < NanoVg_Vgui_Context > ( ) ; }
 Vgui_PrerenderedTextI * NanoVg_Vgui_Context::genPrerenderedText (sttfont_formatted_text const & str) const
                                                                                                       {
 		if (!gFont) return NULL;

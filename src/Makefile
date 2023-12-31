@@ -41,7 +41,7 @@ clean:
 	rm -rf $(TEMPDIR_STTR)*
 	
 .PHONY: nuke
-nuke:
+nuke: clean
 	rm -rf $(OUTPUTDIR)/*.h $(OUTPUTDIR)/*.cpp
 	rm -rf $(OUTPUTDIR_STTR)/*.h $(OUTPUTDIR_STTR)/*.cpp 
 
@@ -51,7 +51,7 @@ $(OUTPUTDIR):
 
 $(TEMPDIR)%.cpp $(TEMPDIR)%.hh: %.lzz $(SUBSOURCES)
 	@mkdir -p $(TEMPDIR)$(dir $<)
-	$(LAZY) -o $(TEMPDIR)$(dir $<) $<
+	$(LAZY) $(STTR_FLAG) -o $(TEMPDIR)$(dir $<) $<
 
 $(OSINGLEHEADER_OUT): $(addprefix $(TEMPDIR), $(SINGLEHEADER_SRC)) $(OUTPUTDIR)
 	cat $(addprefix $(TEMPDIR), $(SINGLEHEADER_SRC)) > $(OSINGLEHEADER_OUT)
