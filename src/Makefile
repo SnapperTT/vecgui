@@ -1,7 +1,7 @@
 # make with STTR with make USE_STTR=ON or make sttr
 USE_STTR=
 
-LAZY=../../../../tools-nondist/lzz -hx hh
+LAZY=../../lzz-bin/lzz -hx hh
 RAWSOURCES=example.lzz vgui_multilinetext.lzz vgui_context.lzz vgui_skin.lzz nanovg_vgui_context.lzz vgui_elements.lzz vgui_stringfunctions.lzz sdl_vgui_context.lzz vgui_generators.lzz vgui_widget.lzz vgui.lzz
 # Files are combined into single header
 SINGLEHEADER_SRC=vgui.h2 vgui_skin.h2 vgui_context.h2 vgui_widget.h2 vgui_elements.h2 vgui_multilinetext.h2 vgui_stringfunctions.h2

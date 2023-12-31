@@ -122,6 +122,7 @@ struct Vgui_MaxSizeArray {
 
 
 void Vgui_Cleanup();
+void vgui_sttr_register(); 
 #define LZZ_INLINE inline
 #undef LZZ_INLINE
 #endif
@@ -149,6 +150,21 @@ void Vgui_Abort(const char * ext) {
 void Vgui_Cleanup() {
 	Vgui_SkinI::defaultSkin.freeDefaultStyles();
 	}
+
+#ifdef STTR_ENABLED
+void vgui_sttr_register() {
+	vgui_sttr_register
+	Vgui_ContextI::sttr_register ();
+	SDL_Vgui_Context::sttr_register ();
+	Vgui_Widget::sttr_register ();
+	Vgui_TextSubWidget::sttr_register ();
+	Vgui_Frame::sttr_register ();
+	Vgui_Button::sttr_register ();
+	Vgui_Text::sttr_register ();
+	Vgui_TextEdit::sttr_register ();
+	Vgui_MultilineText::sttr_register ();
+	}
+#endif // STTR_ENABLED
 #define LZZ_INLINE inline
 #undef LZZ_INLINE
 #endif //VECGUI_IMPL_DOUBLE_GUARD_vgui

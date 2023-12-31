@@ -124,6 +124,7 @@ struct Vgui_MaxSizeArray {
 //#include "sdl_vgui_context.hh"
 
 void Vgui_Cleanup();
+void vgui_sttr_register(); 
 #end
 
 #src
@@ -142,10 +143,10 @@ void Vgui_Abort(const char * ext) {
 void Vgui_Cleanup() {
 	Vgui_SkinI::defaultSkin.freeDefaultStyles();
 	}
-#end
 
 #ifdef STTR_ENABLED
 void vgui_sttr_register() {
+	vgui_sttr_register
 	Vgui_ContextI::sttr_register ();
 	SDL_Vgui_Context::sttr_register ();
 	Vgui_Widget::sttr_register ();
@@ -157,4 +158,4 @@ void vgui_sttr_register() {
 	Vgui_MultilineText::sttr_register ();
 	}
 #endif // STTR_ENABLED
-
+#end
