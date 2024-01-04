@@ -2228,7 +2228,7 @@ void Vgui_StyleWrap::sttr_register ()
 		// Needs custom encode/decode
 		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
 		R.beginClass<Vgui_StyleWrap>("Vgui_StyleWrap")
-			.STTR_REGF(Vgui_StyleWrap, mStyle, VGUI_PERSISTANT);// | VGUI_OWNS_POINTER)
+			.STTR_REGF(Vgui_StyleWrap, mStyle, VGUI_PERSISTANT) // | VGUI_OWNS_POINTER)
 		.endClass();
 		}
 void * Vgui_StyleWrap::sttr_getClassSig () const
@@ -4387,7 +4387,7 @@ void Vgui_MultilineText::draw (bool const forceDraw)
 				// IF IS IN WINDOW
 				if (mTextChunks[ii]->needsRegeneration(chunkWidth)) {
 					mTextChunks[ii]->regenerate(chunkWidth);
-					nRowsRegenerated += mTextChunks[ii]->mLines.size();
+					//nRowsRegenerated += mTextChunks[ii]->mLines.size();
 					}
 				
 				// Bump the next

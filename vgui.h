@@ -4077,7 +4077,7 @@ void Vgui_MultilineText::draw (bool const forceDraw)
 				// IF IS IN WINDOW
 				if (mTextChunks[ii]->needsRegeneration(chunkWidth)) {
 					mTextChunks[ii]->regenerate(chunkWidth);
-					nRowsRegenerated += mTextChunks[ii]->mLines.size();
+					//nRowsRegenerated += mTextChunks[ii]->mLines.size();
 					}
 				
 				// Bump the next

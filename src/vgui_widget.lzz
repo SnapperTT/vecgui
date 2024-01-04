@@ -41,7 +41,7 @@ public:
 		// Needs custom encode/decode
 		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
 		R.beginClass<Vgui_StyleWrap>("Vgui_StyleWrap")
-			.STTR_REGF(Vgui_StyleWrap, mStyle, VGUI_PERSISTANT);// | VGUI_OWNS_POINTER)
+			.STTR_REGF(Vgui_StyleWrap, mStyle, VGUI_PERSISTANT) // | VGUI_OWNS_POINTER)
 		.endClass();
 		}
 	STTR_CLASS_SIG_NON_POLY(Vgui_StyleWrap)
