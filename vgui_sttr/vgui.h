@@ -2051,8 +2051,8 @@ class Vgui_StyleWrap
 public:
   Vgui_Style mStyle;
   static void sttr_register ();
-  virtual void * sttr_getClassSig () const;
-  virtual char const * const sttr_getClassName () const;
+  void * sttr_getClassSig () const;
+  char const * const sttr_getClassName () const;
 };
 class Vgui_Widget
 {
@@ -2228,7 +2228,7 @@ void Vgui_StyleWrap::sttr_register ()
 		// Needs custom encode/decode
 		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
 		R.beginClass<Vgui_StyleWrap>("Vgui_StyleWrap")
-			.STTR_REGF(Vgui_StyleWrap, mStyle, VGUI_PERSISTANT | VGUI_OWNS_POINTER)
+			.STTR_REGF(Vgui_StyleWrap, mStyle, VGUI_PERSISTANT);// | VGUI_OWNS_POINTER)
 		.endClass();
 		}
 void * Vgui_StyleWrap::sttr_getClassSig () const
@@ -4379,7 +4379,7 @@ void Vgui_MultilineText::draw (bool const forceDraw)
 		if (iChunkEndHint <= iChunkStartHint) iChunkEndHint = iChunkStartHint+1;
 		
 		//uint64_t LAST = SDL_GetPerformanceCounter();
-		int nRowsRegenerated = 0;
+		//int nRowsRegenerated = 0;
 		
 		if (bumpAll) {
 			VGUI_COORD yCum = 0;	// By seriously, y tho?
