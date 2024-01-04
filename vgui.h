@@ -4069,7 +4069,7 @@ void Vgui_MultilineText::draw (bool const forceDraw)
 		if (iChunkEndHint <= iChunkStartHint) iChunkEndHint = iChunkStartHint+1;
 		
 		//uint64_t LAST = SDL_GetPerformanceCounter();
-		int nRowsRegenerated = 0;
+		//int nRowsRegenerated = 0;
 		
 		if (bumpAll) {
 			VGUI_COORD yCum = 0;	// By seriously, y tho?
