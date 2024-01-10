@@ -1455,6 +1455,10 @@ public:
   VGUI_VECTOR <Vgui_Scissor> scissorStack;
   Vgui_Scissor activeScissor;
   Vgui_TextSubWidget caretString;
+  uint8_t defaultTextColourR;
+  uint8_t defaultTextColourG;
+  uint8_t defaultTextColourB;
+  uint8_t defaultTextColourA;
   VGUI_COORD caretKerning;
   Vgui_ContextI ();
   virtual ~ Vgui_ContextI ();
@@ -1628,7 +1632,12 @@ void Vgui_TextSubWidget::prerender ()
 		if (!mTextPrerendered && !isDummy) {
 			//std::cout << "Prerendering: [" << text.getString() << "]" << std::endl;
 			text.consolidateSegments();			// Remove junk
-			text.setColour(sttfont_format::black);	// Set any unset colors to black
+			text.overrideColour(sttfont_format::color(
+									Vgui_ContextI::aContext->defaultTextColourR,
+									Vgui_ContextI::aContext->defaultTextColourG,
+									Vgui_ContextI::aContext->defaultTextColourB,
+									Vgui_ContextI::aContext->defaultTextColourA
+									));	// Set any unset colors to black
 			mTextPrerendered = Vgui_ContextI::aContext->genPrerenderedText(text);
 			}
 		}
@@ -1700,6 +1709,10 @@ Vgui_ContextI::Vgui_ContextI ()
                                                                                                                             { 
 		mSkin = &Vgui_SkinI::defaultSkin;
 		caretString.assign("|");
+		defaultTextColourR = 0;
+		defaultTextColourG = 0;
+		defaultTextColourB = 0;
+		defaultTextColourA = 255;
 		}
 Vgui_ContextI::~ Vgui_ContextI ()
                                  {
