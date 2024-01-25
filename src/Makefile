@@ -7,6 +7,8 @@ RAWSOURCES=example.lzz vgui_multilinetext.lzz vgui_context.lzz vgui_skin.lzz nan
 SINGLEHEADER_SRC=vgui.h2 vgui_skin.h2 vgui_context.h2 vgui_widget.h2 vgui_elements.h2 vgui_multilinetext.h2 vgui_stringfunctions.h2
 SINGLEHEADER_OUT=vgui.h
 # Files that are discrete files 
+.DEFAULT_GOAL := all
+
 EXTRAHEADER_H=nanovg_vgui_context.h2 sdl_vgui_context.h2
 EXTRAHEADER_CPP=example.h2 
 OUTPUTDIR=../
@@ -27,13 +29,18 @@ OEXTRAHEADER_OUT=$(addprefix $(OUTPUTDIR), $(EXTRAHEADER_H:.h2=.h)) $(addprefix 
 ########################################################################
 # Phoney Rules
 .PHONY: all
-all: $(OSINGLEHEADER_OUT) $(OEXTRAHEADER_OUT) $(OUTPUTDIR)
+all:
+	$(MAKE) all_base
+	$(MAKE) USE_STTR=ON all_base
+
+.PHONY: all_base
+all_base: $(OSINGLEHEADER_OUT) $(OEXTRAHEADER_OUT) $(OUTPUTDIR)
 	@cp -f vgui_constants.hpp $(OUTPUTDIR)/vgui_constants.hpp
 	@echo Done
 
 .PHONY: sttr
 sttr:
-	$(MAKE) USE_STTR=ON all
+	$(MAKE) USE_STTR=ON all_base
 
 .PHONY: clean
 clean:
