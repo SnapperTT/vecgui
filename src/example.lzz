@@ -1,7 +1,7 @@
 #hdr
 #include <iostream>
 #include <SDL2/SDL.h>
-#include "std-stb-font/sdlStbFont.h"
+#include "sdl-stb-font/sdlStbFont.h"
 #define VGUI_DO_DELTA_DRAWING 1
 
 // Include the header
@@ -17,7 +17,7 @@
 
 #src
 #define SDL_STB_FONT_IMPL
-#include "sdlStbFont/sdlStbFont.h"
+#include "sdl-stb-font/sdlStbFont.h"
 
 #include <fstream>
 

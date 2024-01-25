@@ -6,7 +6,7 @@
 #define LZZ_example_hh
 #include <iostream>
 #include <SDL2/SDL.h>
-#include "std-stb-font/sdlStbFont.h"
+#include "sdl-stb-font/sdlStbFont.h"
 #define VGUI_DO_DELTA_DRAWING 1
 
 // Include the header
@@ -39,7 +39,7 @@ int main (int argc, char * * argv);
 //
 
 #define SDL_STB_FONT_IMPL
-#include "sdlStbFont/sdlStbFont.h"
+#include "sdl-stb-font/sdlStbFont.h"
 
 #include <fstream>
 
