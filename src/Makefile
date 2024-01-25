@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := all
+
 # make with STTR with make USE_STTR=ON or make sttr
 USE_STTR=
 
