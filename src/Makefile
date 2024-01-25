@@ -31,7 +31,7 @@ OEXTRAHEADER_OUT=$(addprefix $(OUTPUTDIR), $(EXTRAHEADER_H:.h2=.h)) $(addprefix 
 .PHONY: all
 all:
 	$(MAKE) all_base
-	$(MAKE) USE_STTR=ON all_base
+	$(MAKE) sttr
 
 .PHONY: all_base
 all_base: $(OSINGLEHEADER_OUT) $(OEXTRAHEADER_OUT) $(OUTPUTDIR)
