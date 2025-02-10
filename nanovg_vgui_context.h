@@ -20,11 +20,10 @@ struct NanoVg_Vgui_PrerenderedText : public Vgui_PrerenderedTextI
 class NanoVg_Vgui_Context : public Vgui_ContextI
 {
 public:
-  NVGcontext * mNanoContext;
   NanoVgCommandBuffer NVG;
   producer_consumer_font_cache * gFont;
-  NVGcolor canvasColour;
-  NVGpaint canvasPaint;
+  NCBColor canvasColour;
+  int canvasPaint;
   bool usePaint;
   NanoVg_Vgui_Context ();
   virtual Vgui_PrerenderedTextI * genPrerenderedText (sttfont_formatted_text const & str) const;
@@ -98,8 +97,9 @@ VGUI_COORD NanoVg_Vgui_PrerenderedText::getHeight () const
 NanoVg_Vgui_Context::NanoVg_Vgui_Context ()
   : Vgui_ContextI ()
                                                 {
-		mNanoContext = NULL;
 		gFont = NULL;
+		canvasColour = NCBColor(1.0f,1.0f,1.0f,1.0f);
+		canvasPaint = 0;
 		usePaint = false;
 		}
 Vgui_PrerenderedTextI * NanoVg_Vgui_Context::genPrerenderedText (sttfont_formatted_text const & str) const
@@ -149,11 +149,15 @@ void NanoVg_Vgui_Context::ctx_clearBgfxDrawScissor ()
 		}
 void NanoVg_Vgui_Context::setColor (VGUI_COLOR const r, VGUI_COLOR const g, VGUI_COLOR const b, VGUI_COLOR const a)
                                                                                                        {
-		canvasColour = nvgRGBA(r,g,b,a);
+		if constexpr(sizeof(VGUI_COLOR) == sizeof(uint8_t)) {
+			canvasColour = NCBColor(r/255.0,g/255.0,b/255.0,a/255.0);
+			return;
+			}
+		canvasColour = NCBColor(r,g,b,a);
 		}
 void NanoVg_Vgui_Context::setColorF (float const r, float const g, float const b, float const a)
                                                                                     {
-		canvasColour = nvgRGBAf(r,g,b,a);
+		canvasColour = NCBColor(r,g,b,a);
 		}
 void NanoVg_Vgui_Context::prerender ()
                          {
@@ -162,7 +166,7 @@ void NanoVg_Vgui_Context::prerender ()
 		}
 void NanoVg_Vgui_Context::setGradient (VGUI_COORD const x1, VGUI_COORD const y1, VGUI_COORD const x2, VGUI_COORD const y2, uint8_t const r1, uint8_t const g1, uint8_t const b1, uint8_t const a1, uint8_t const r2, uint8_t const g2, uint8_t const b2, uint8_t const a2)
                                                                                                                                                                                                                                                              {
-		canvasPaint = nvgLinearGradient(mNanoContext, x1, y1, x2, y2, nvgRGBA(r1, g1, b1, a1), nvgRGBA(r2, g2, b2, a2));
+		canvasPaint = NVG.nvgLinearGradient(x1, y1, x2, y2, NCBColor(r1, g1, b1, a1), NCBColor(r2, g2, b2, a2));
 		usePaint = true;
 		}
 void NanoVg_Vgui_Context::clearGradient ()

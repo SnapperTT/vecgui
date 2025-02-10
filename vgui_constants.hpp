@@ -1,5 +1,5 @@
 #define VC_STRINGIFY(X) #X
-#define VC_ENUM_WRITE(NS,X) writeValue(writer, std::string(#X)); return;
+#define VC_ENUM_WRITE(NS,X) writeValue(writer, VGUI_STRING(#X)); return;
 #define VC_ENUM_TO_SWITCH_CASE(NS,X) case NS::X: VC_ENUM_WRITE(NS,X)
 #define VC_ENUM_FROM_IF_CASE(y, z, NS,X) if (y == #X) *z = NS::X; 
 
@@ -72,7 +72,7 @@ namespace jv_helper {
 	template<> inline void writeValue(rapidjson_writer * writer, Vgui_TextEditEvent const & obj) { writeValue_Vgui_TextEditEvent(writer, obj); }
 
 	static void fetchGeneric_Vgui_TextEditEvent(Vgui_TextEditEvent * dst, const rapidjson::Value & v) {
-		std::string value; jv_helper::fetchString(value, v);
+		VGUI_STRING value; jv_helper::fetchString(value, v);
 		VC_ENUM_FROM_IF_CASE(value, dst, Vgui_TextEditEvent,VGUI_TEXTEDIT_INSERT)
 		else VC_ENUM_FROM_IF_CASE(value, dst, Vgui_TextEditEvent,VGUI_TEXTEDIT_BACKSPACE)
 		else VC_ENUM_FROM_IF_CASE(value, dst, Vgui_TextEditEvent,VGUI_TEXTEDIT_DELETE)
@@ -100,7 +100,7 @@ namespace jv_helper {
 	template<> inline void writeValue(rapidjson_writer * writer, Vgui_Alignment const & obj) { writeValue_Vgui_Alignment(writer, obj); }
 		
 	static void fetchGeneric_Vgui_Alignment(Vgui_Alignment * dst, const rapidjson::Value & v) {
-		std::string value; jv_helper::fetchString(value, v);
+		VGUI_STRING value; jv_helper::fetchString(value, v);
 		VC_ENUM_FROM_IF_CASE(value, dst, Vgui_Alignment,VGUI_LEFT)
 		else VC_ENUM_FROM_IF_CASE(value, dst, Vgui_Alignment,VGUI_TOP)
 		else VC_ENUM_FROM_IF_CASE(value, dst, Vgui_Alignment,VGUI_CENTER)
@@ -124,7 +124,7 @@ namespace jv_helper {
 	template<> inline void writeValue(rapidjson_writer * writer, Vgui_PosMode const & obj) { writeValue_Vgui_PosMode(writer, obj); }
 
 	static void fetchGeneric_Vgui_PosMode(Vgui_PosMode * dst, const rapidjson::Value & v) {
-		std::string value; jv_helper::fetchString(value, v);
+		VGUI_STRING value; jv_helper::fetchString(value, v);
 		VC_ENUM_FROM_IF_CASE(value, dst, Vgui_PosMode,VGUI_POS_COORDINATE)
 		else VC_ENUM_FROM_IF_CASE(value, dst, Vgui_PosMode,VGUI_POS_EM)
 		else VC_ENUM_FROM_IF_CASE(value, dst, Vgui_PosMode,VGUI_POS_PERCENT)
@@ -148,7 +148,7 @@ namespace jv_helper {
 	template<> inline void writeValue(rapidjson_writer * writer, Vgui_DimMode const & obj) { writeValue_Vgui_DimMode(writer, obj); }
 
 	static void fetchGeneric_Vgui_DimMode(Vgui_DimMode * dst, const rapidjson::Value & v) {
-		std::string value; jv_helper::fetchString(value, v);
+		VGUI_STRING value; jv_helper::fetchString(value, v);
 		VC_ENUM_FROM_IF_CASE(value, dst, Vgui_DimMode,VGUI_DIM_COORDINATE)
 		else VC_ENUM_FROM_IF_CASE(value, dst, Vgui_DimMode,VGUI_DIM_EM)
 		else VC_ENUM_FROM_IF_CASE(value, dst, Vgui_DimMode,VGUI_DIM_PERCENT)

@@ -39,31 +39,23 @@ struct NanoVg_Vgui_PrerenderedText : public Vgui_PrerenderedTextI {
 		
 	VGUI_COORD getWidth() const { return prt.width; }
 	VGUI_COORD getHeight() const { return prt.height; }
-	}
+	};
 
 
 class NanoVg_Vgui_Context : public Vgui_ContextI {
 public:
-	NVGcontext * mNanoContext; // SDL_Renderer. You'll have to create/destroy this
 	NanoVgCommandBuffer NVG;
-	
-	//TTF_Font * gFont; // SDL_TTF font renderer. You'll have to create/destory this
-	//bgfx_stb_font_cache * gFont;
 	producer_consumer_font_cache * gFont; // SDL_FontCache font. SDL_FontCache caches SDL_ttf fonts to improve resource usage and perf.
 	
-	NVGcolor canvasColour;
-	NVGpaint canvasPaint;
+	NCBColor canvasColour;
+	int canvasPaint;
 	bool usePaint;
 
 
-	//void nvgFlushFrame(NVGcontext*ctx) {
-	//	NVG.flushFrame();
-	//	}
-
-
 	NanoVg_Vgui_Context() : Vgui_ContextI() {
-		mNanoContext = NULL;
 		gFont = NULL;
+		canvasColour = NCBColor(1.0f,1.0f,1.0f,1.0f);
+		canvasPaint = 0;
 		usePaint = false;
 		}
 		
@@ -123,11 +115,15 @@ public:
 		}
 		
 	void setColor (const VGUI_COLOR r, const VGUI_COLOR g, const VGUI_COLOR b, const VGUI_COLOR a) {
-		canvasColour = nvgRGBA(r,g,b,a);
+		if constexpr(sizeof(VGUI_COLOR) == sizeof(uint8_t)) {
+			canvasColour = NCBColor(r/255.0,g/255.0,b/255.0,a/255.0);
+			return;
+			}
+		canvasColour = NCBColor(r,g,b,a);
 		}
 		
 	void setColorF (const float r, const float g, const float b, const float a) {
-		canvasColour = nvgRGBAf(r,g,b,a);
+		canvasColour = NCBColor(r,g,b,a);
 		}
 		
 	void prerender() {
@@ -136,7 +132,7 @@ public:
 		}
 		
 	void setGradient(const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD x2, const VGUI_COORD y2, const uint8_t r1, const uint8_t g1, const uint8_t b1, const uint8_t a1, const uint8_t r2, const uint8_t g2, const uint8_t b2, const uint8_t a2) {
-		canvasPaint = nvgLinearGradient(mNanoContext, x1, y1, x2, y2, nvgRGBA(r1, g1, b1, a1), nvgRGBA(r2, g2, b2, a2));
+		canvasPaint = NVG.nvgLinearGradient(x1, y1, x2, y2, NCBColor(r1, g1, b1, a1), NCBColor(r2, g2, b2, a2));
 		usePaint = true;
 		}
 		
@@ -243,4 +239,4 @@ public:
 		vecgui::breakString_worker(gFont, stringIn, arrOut, xs, tokeniseNewLines, breakPoints);	
 		}
 	
-	}
+	};
