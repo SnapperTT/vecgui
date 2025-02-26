@@ -20,7 +20,7 @@ struct NanoVg_Vgui_PrerenderedText : public Vgui_PrerenderedTextI
 class NanoVg_Vgui_Context : public Vgui_ContextI
 {
 public:
-  NanoVgCommandBuffer NVG;
+  NanoVgCommandBuffer * NVG;
   producer_consumer_font_cache * gFont;
   NCBColor canvasColour;
   int canvasPaint;
@@ -81,7 +81,7 @@ void NanoVg_Vgui_PrerenderedText::draw (VGUI_COORD const x, VGUI_COORD const y)
 		NanoVg_Vgui_Context* ctx = ((NanoVg_Vgui_Context *)Vgui_ContextI::aContext);
 		ctx->ctx_setBgfxDrawScissor();
 		//std::cout << "NanoVg_Vgui_PrerenderedText [" << x << ", " << y << ", " << prt.width << ", " << prt.height << "] " << ft.getString() << std::endl;
-		ctx->NVG.pushSsfPrerendered(prt.handle, x, y);
+		ctx->NVG->pushSsfPrerendered(prt.handle, x, y);
 		ctx->ctx_clearBgfxDrawScissor();
 		}
 void NanoVg_Vgui_PrerenderedText::drawWithColorMod (VGUI_COORD const x, VGUI_COORD const y, VGUI_COLOR const r, VGUI_COLOR const g, VGUI_COLOR const b, VGUI_COLOR const a)
@@ -90,7 +90,7 @@ void NanoVg_Vgui_PrerenderedText::drawWithColorMod (VGUI_COORD const x, VGUI_COO
 		
 		NanoVg_Vgui_Context* ctx = ((NanoVg_Vgui_Context *)Vgui_ContextI::aContext);
 		ctx->ctx_setBgfxDrawScissor();
-		ctx->NVG.pushSsfPrerenderedWColorMod(prt.handle, x, y, r, g, b, a);
+		ctx->NVG->pushSsfPrerenderedWColorMod(prt.handle, x, y, r, g, b, a);
 		ctx->ctx_clearBgfxDrawScissor();
 		}
 VGUI_COORD NanoVg_Vgui_PrerenderedText::getWidth () const
@@ -125,24 +125,24 @@ Vgui_PrerenderedTextI * NanoVg_Vgui_Context::genPrerenderedText (sttfont_formatt
 		}
 void NanoVg_Vgui_Context::renderTriangle (VGUI_COORD const x1, VGUI_COORD const y1, VGUI_COORD const x2, VGUI_COORD const y2, VGUI_COORD const x3, VGUI_COORD const y3)
                                                                                                                                                            {
-		NVG.nvgBeginPath();
-		NVG.nvgMoveTo(x1, y1);
-		NVG.nvgLineTo(x2, y2);
-		NVG.nvgLineTo(x3, y3);
+		NVG->nvgBeginPath();
+		NVG->nvgMoveTo(x1, y1);
+		NVG->nvgLineTo(x2, y2);
+		NVG->nvgLineTo(x3, y3);
 		if (usePaint)
-			NVG.nvgFillPaint(canvasPaint);
+			NVG->nvgFillPaint(canvasPaint);
 		else
-			NVG.nvgFillColor(canvasColour);
-		NVG.nvgFill();
-		//NVG.nvgClosePath();
+			NVG->nvgFillColor(canvasColour);
+		NVG->nvgFill();
+		//NVG->nvgClosePath();
 		}
 void NanoVg_Vgui_Context::ctx_setScissor ()
                               {
 		if (activeScissor.isNull()) {
-			NVG.nvgResetScissor();
+			NVG->nvgResetScissor();
 			return;
 			}
-		NVG.nvgScissor(activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
+		NVG->nvgScissor(activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
 		}
 void NanoVg_Vgui_Context::ctx_setBgfxDrawScissor ()
                                       {
@@ -150,7 +150,7 @@ void NanoVg_Vgui_Context::ctx_setBgfxDrawScissor ()
 			return;
 			}
 		//std::cout << "bgfxSetViewScissor" << activeScissor.x << ", " << activeScissor.y << ", " <<  activeScissor.w << ", " <<  activeScissor.h<< std::endl;
-		NVG.ssfBgfxSetScissor(activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
+		NVG->ssfBgfxSetScissor(activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
 		//bgfx::setViewScissor(gFont->mViewId, activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
 		}
 void NanoVg_Vgui_Context::ctx_clearBgfxDrawScissor ()
@@ -158,7 +158,7 @@ void NanoVg_Vgui_Context::ctx_clearBgfxDrawScissor ()
 		if (activeScissor.isNull()) {
 			return;
 			}
-		NVG.ssfBgfxClearScissor();
+		NVG->ssfBgfxClearScissor();
 		}
 void NanoVg_Vgui_Context::setColor (VGUI_COLOR const r, VGUI_COLOR const g, VGUI_COLOR const b, VGUI_COLOR const a)
                                                                                                        {
@@ -179,7 +179,7 @@ void NanoVg_Vgui_Context::prerender ()
 		}
 void NanoVg_Vgui_Context::setGradient (VGUI_COORD const x1, VGUI_COORD const y1, VGUI_COORD const x2, VGUI_COORD const y2, uint8_t const r1, uint8_t const g1, uint8_t const b1, uint8_t const a1, uint8_t const r2, uint8_t const g2, uint8_t const b2, uint8_t const a2)
                                                                                                                                                                                                                                                              {
-		canvasPaint = NVG.nvgLinearGradient(x1, y1, x2, y2, NCBColor(r1, g1, b1, a1), NCBColor(r2, g2, b2, a2));
+		canvasPaint = NVG->nvgLinearGradient(x1, y1, x2, y2, NCBColor(r1, g1, b1, a1), NCBColor(r2, g2, b2, a2));
 		usePaint = true;
 		}
 void NanoVg_Vgui_Context::clearGradient ()
@@ -208,34 +208,34 @@ void NanoVg_Vgui_Context::renderQuadWH (VGUI_COORD const x1, VGUI_COORD const y1
 		VGUI_COORD w = scalef * width;
 		VGUI_COORD h = scalef * height;
 		
-		NVG.nvgBeginPath();
-		NVG.nvgRect (px1, py1, w, h);
+		NVG->nvgBeginPath();
+		NVG->nvgRect (px1, py1, w, h);
 		if (usePaint)
-			NVG.nvgFillPaint(canvasPaint);
+			NVG->nvgFillPaint(canvasPaint);
 		else
-			NVG.nvgFillColor(canvasColour);
-		NVG.nvgFill();
+			NVG->nvgFillColor(canvasColour);
+		NVG->nvgFill();
 		}
 void NanoVg_Vgui_Context::renderArc (VGUI_COORD const originX, VGUI_COORD const originY, VGUI_COORD const radius, float const startAngle, float const endAngle)
                                                                                                                                                    {
-		NVG.nvgBeginPath();
-		NVG.nvgMoveTo(originX, originY);
-		NVG.nvgArc (originX, originY, radius, startAngle, endAngle, 2); // NVGWinding::NVG_CCW == 1
+		NVG->nvgBeginPath();
+		NVG->nvgMoveTo(originX, originY);
+		NVG->nvgArc (originX, originY, radius, startAngle, endAngle, 2); // NVGWinding::NVG_CCW == 1
 		if (usePaint)
-			NVG.nvgFillPaint(canvasPaint);
+			NVG->nvgFillPaint(canvasPaint);
 		else
-			NVG.nvgFillColor(canvasColour);
-		NVG.nvgFill();
+			NVG->nvgFillColor(canvasColour);
+		NVG->nvgFill();
 		}
 void NanoVg_Vgui_Context::renderRoundedQuadWH (VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const r)
                                                                                                                                       {
-		NVG.nvgBeginPath();
-		NVG.nvgRoundedRect (x, y, w, h, r);
+		NVG->nvgBeginPath();
+		NVG->nvgRoundedRect (x, y, w, h, r);
 		if (usePaint)
-			NVG.nvgFillPaint(canvasPaint);
+			NVG->nvgFillPaint(canvasPaint);
 		else
-			NVG.nvgFillColor(canvasColour);
-		NVG.nvgFill();
+			NVG->nvgFillColor(canvasColour);
+		NVG->nvgFill();
 		}
 uint64_t const NanoVg_Vgui_Context::cZero = SDL_GetPerformanceCounter();
 double const NanoVg_Vgui_Context::pefFq = SDL_GetPerformanceFrequency();
@@ -250,7 +250,7 @@ void NanoVg_Vgui_Context::renderText (sttfont_formatted_text const & text, VGUI_
 		pcfc_handle h = gFont->pushText(scalef*x1, scalef*y1, text);
 		
 		ctx_setBgfxDrawScissor();		
-		NVG.pushSsfText(h);
+		NVG->pushSsfText(h);
 		ctx_clearBgfxDrawScissor();
 		}
 void NanoVg_Vgui_Context::getTextSize (sttfont_formatted_text const & text, VGUI_COORD & widthOut, VGUI_COORD & heightOut, sttfont_lookupHint * mHint, VGUI_COORD const * const maxWidth) const

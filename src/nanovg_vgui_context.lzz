@@ -24,7 +24,7 @@ struct NanoVg_Vgui_PrerenderedText : public Vgui_PrerenderedTextI {
 		NanoVg_Vgui_Context* ctx = ((NanoVg_Vgui_Context *)Vgui_ContextI::aContext);
 		ctx->ctx_setBgfxDrawScissor();
 		//std::cout << "NanoVg_Vgui_PrerenderedText [" << x << ", " << y << ", " << prt.width << ", " << prt.height << "] " << ft.getString() << std::endl;
-		ctx->NVG.pushSsfPrerendered(prt.handle, x, y);
+		ctx->NVG->pushSsfPrerendered(prt.handle, x, y);
 		ctx->ctx_clearBgfxDrawScissor();
 		}
 	
@@ -33,7 +33,7 @@ struct NanoVg_Vgui_PrerenderedText : public Vgui_PrerenderedTextI {
 		
 		NanoVg_Vgui_Context* ctx = ((NanoVg_Vgui_Context *)Vgui_ContextI::aContext);
 		ctx->ctx_setBgfxDrawScissor();
-		ctx->NVG.pushSsfPrerenderedWColorMod(prt.handle, x, y, r, g, b, a);
+		ctx->NVG->pushSsfPrerenderedWColorMod(prt.handle, x, y, r, g, b, a);
 		ctx->ctx_clearBgfxDrawScissor();
 		}
 		
@@ -44,8 +44,8 @@ struct NanoVg_Vgui_PrerenderedText : public Vgui_PrerenderedTextI {
 
 class NanoVg_Vgui_Context : public Vgui_ContextI {
 public:
-	NanoVgCommandBuffer NVG;
-	producer_consumer_font_cache * gFont; // SDL_FontCache font. SDL_FontCache caches SDL_ttf fonts to improve resource usage and perf.
+	NanoVgCommandBuffer* NVG;
+	producer_consumer_font_cache* gFont; // SDL_FontCache font. SDL_FontCache caches SDL_ttf fonts to improve resource usage and perf.
 	
 	NCBColor canvasColour;
 	int canvasPaint;
@@ -78,24 +78,24 @@ public:
 
 	// Rasterises a triangle
 	void renderTriangle (const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD x2, const VGUI_COORD y2, const VGUI_COORD x3, const VGUI_COORD y3) {
-		NVG.nvgBeginPath();
-		NVG.nvgMoveTo(x1, y1);
-		NVG.nvgLineTo(x2, y2);
-		NVG.nvgLineTo(x3, y3);
+		NVG->nvgBeginPath();
+		NVG->nvgMoveTo(x1, y1);
+		NVG->nvgLineTo(x2, y2);
+		NVG->nvgLineTo(x3, y3);
 		if (usePaint)
-			NVG.nvgFillPaint(canvasPaint);
+			NVG->nvgFillPaint(canvasPaint);
 		else
-			NVG.nvgFillColor(canvasColour);
-		NVG.nvgFill();
-		//NVG.nvgClosePath();
+			NVG->nvgFillColor(canvasColour);
+		NVG->nvgFill();
+		//NVG->nvgClosePath();
 		}
 	
 	void ctx_setScissor() {
 		if (activeScissor.isNull()) {
-			NVG.nvgResetScissor();
+			NVG->nvgResetScissor();
 			return;
 			}
-		NVG.nvgScissor(activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
+		NVG->nvgScissor(activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
 		}
 		
 	void ctx_setBgfxDrawScissor() {
@@ -103,7 +103,7 @@ public:
 			return;
 			}
 		//std::cout << "bgfxSetViewScissor" << activeScissor.x << ", " << activeScissor.y << ", " <<  activeScissor.w << ", " <<  activeScissor.h<< std::endl;
-		NVG.ssfBgfxSetScissor(activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
+		NVG->ssfBgfxSetScissor(activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
 		//bgfx::setViewScissor(gFont->mViewId, activeScissor.x, activeScissor.y, activeScissor.w, activeScissor.h);
 		}
 		
@@ -111,7 +111,7 @@ public:
 		if (activeScissor.isNull()) {
 			return;
 			}
-		NVG.ssfBgfxClearScissor();
+		NVG->ssfBgfxClearScissor();
 		}
 		
 	void setColor (const VGUI_COLOR r, const VGUI_COLOR g, const VGUI_COLOR b, const VGUI_COLOR a) {
@@ -132,7 +132,7 @@ public:
 		}
 		
 	void setGradient(const VGUI_COORD x1, const VGUI_COORD y1, const VGUI_COORD x2, const VGUI_COORD y2, const uint8_t r1, const uint8_t g1, const uint8_t b1, const uint8_t a1, const uint8_t r2, const uint8_t g2, const uint8_t b2, const uint8_t a2) {
-		canvasPaint = NVG.nvgLinearGradient(x1, y1, x2, y2, NCBColor(r1, g1, b1, a1), NCBColor(r2, g2, b2, a2));
+		canvasPaint = NVG->nvgLinearGradient(x1, y1, x2, y2, NCBColor(r1, g1, b1, a1), NCBColor(r2, g2, b2, a2));
 		usePaint = true;
 		}
 		
@@ -159,34 +159,34 @@ public:
 		VGUI_COORD w = scalef * width;
 		VGUI_COORD h = scalef * height;
 		
-		NVG.nvgBeginPath();
-		NVG.nvgRect (px1, py1, w, h);
+		NVG->nvgBeginPath();
+		NVG->nvgRect (px1, py1, w, h);
 		if (usePaint)
-			NVG.nvgFillPaint(canvasPaint);
+			NVG->nvgFillPaint(canvasPaint);
 		else
-			NVG.nvgFillColor(canvasColour);
-		NVG.nvgFill();
+			NVG->nvgFillColor(canvasColour);
+		NVG->nvgFill();
 		}
 		
 	void renderArc(const VGUI_COORD originX, const VGUI_COORD originY, const VGUI_COORD radius,  const float startAngle, const float endAngle) {
-		NVG.nvgBeginPath();
-		NVG.nvgMoveTo(originX, originY);
-		NVG.nvgArc (originX, originY, radius, startAngle, endAngle, 2); // NVGWinding::NVG_CCW == 1
+		NVG->nvgBeginPath();
+		NVG->nvgMoveTo(originX, originY);
+		NVG->nvgArc (originX, originY, radius, startAngle, endAngle, 2); // NVGWinding::NVG_CCW == 1
 		if (usePaint)
-			NVG.nvgFillPaint(canvasPaint);
+			NVG->nvgFillPaint(canvasPaint);
 		else
-			NVG.nvgFillColor(canvasColour);
-		NVG.nvgFill();
+			NVG->nvgFillColor(canvasColour);
+		NVG->nvgFill();
 		}
 	
 	void renderRoundedQuadWH (const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD r) {
-		NVG.nvgBeginPath();
-		NVG.nvgRoundedRect (x, y, w, h, r);
+		NVG->nvgBeginPath();
+		NVG->nvgRoundedRect (x, y, w, h, r);
 		if (usePaint)
-			NVG.nvgFillPaint(canvasPaint);
+			NVG->nvgFillPaint(canvasPaint);
 		else
-			NVG.nvgFillColor(canvasColour);
-		NVG.nvgFill();
+			NVG->nvgFillColor(canvasColour);
+		NVG->nvgFill();
 		}
 	
 	const static uint64_t cZero = SDL_GetPerformanceCounter();
@@ -202,7 +202,7 @@ public:
 		pcfc_handle h = gFont->pushText(scalef*x1, scalef*y1, text);
 		
 		ctx_setBgfxDrawScissor();		
-		NVG.pushSsfText(h);
+		NVG->pushSsfText(h);
 		ctx_clearBgfxDrawScissor();
 		}
 	virtual void getTextSize (const sttfont_formatted_text & text, VGUI_COORD & widthOut, VGUI_COORD & heightOut, sttfont_lookupHint * mHint = NULL, const VGUI_COORD * const maxWidth = NULL) const {
