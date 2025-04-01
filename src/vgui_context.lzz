@@ -17,6 +17,10 @@ struct uintQuad {
 	};
 }
 	
+struct Vgui_Quad {
+	VGUI_COORD x, y, w, h;
+	};
+	
 struct Vgui_PrerenderedTextI {
 	Vgui_PrerenderedTextI () {}
 	virtual ~Vgui_PrerenderedTextI() {}
@@ -40,6 +44,47 @@ struct Vgui_Scissor {
 	inline Vgui_Scissor() { setToNull(); }
 	};
 
+struct IME_Handler {
+	Vgui_Widget * boundElement;
+	IME_Handler() : boundElement(NULL) {}
+	virtual void onStartTextEditing (Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) = 0;
+	virtual void updateTextEditingRegion (Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) = 0;
+	virtual void onStopTextEditing (Vgui_Widget* editElement) = 0;
+	};
+
+struct SDL_IME_Handler : public IME_Handler {
+	SDL_Window * mWindow;
+	
+	SDL_IME_Handler(SDL_Window* _mWindow) : IME_Handler(), mWindow(_mWindow) {}
+	
+	void onStartTextEditing (Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) {
+		if (boundElement != editElement) {
+			boundElement = editElement;
+			SDL_StartTextInput(mWindow);
+			
+			updateTextEditingRegion(editElement, x, y, w, h, cursorX);
+			}
+		}
+		
+	void updateTextEditingRegion(Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) {
+		if (editElement == boundElement) {
+			SDL_Rect r;
+			r.x = x; r.y = y; r.w = w; r.h = h;
+			if (w > 0)
+				SDL_SetTextInputArea(mWindow, &r, (int) cursorX);
+			else
+				SDL_SetTextInputArea(mWindow, NULL, 0);
+			}
+		} 
+		
+	/// Called when a text editing element looses focus
+	void onStopTextEditing (Vgui_Widget* editElement) {
+		if (editElement == boundElement) {
+			SDL_StopTextInput(mWindow);
+			boundElement = NULL;
+			}
+		}
+	};
 
 struct Vgui_TextSubWidget {
 	sttfont_formatted_text text;
@@ -207,6 +252,9 @@ public:
 	uint8_t defaultTextColourA;
 	VGUI_COORD caretKerning;
 	
+	// Callbacks
+	IME_Handler* mIME_Handler; // Used to handle 
+	
 	Vgui_ContextI()
 		: mCanvas(NULL), mSkin(NULL), canvasXSz(100), canvasYSz(100), scalef(1.0f), redrawRq(true), caretKerning(0) { 
 		mSkin = &Vgui_SkinI::defaultSkin;
@@ -215,6 +263,8 @@ public:
 		defaultTextColourG = 0;
 		defaultTextColourB = 0;
 		defaultTextColourA = 255;
+		
+		mIME_Handler = NULL;
 		}
 
 	virtual ~Vgui_ContextI() {
@@ -558,5 +608,21 @@ public:
 		if (mCanvas) return mCanvas->processTextInputEvent_recursive(string, evType, textOut);
 		return false;
 		}
+	
+	// Process IME events
+	void onStartTextEditing (Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) {
+		if (mIME_Handler)
+			return mIME_Handler->onStartTextEditing(editElement, x, y, w, h, cursorX);
+		}
+	void updateTextEditingRegion (Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) {
+		// Use this if an active text editing element is moved or resized 
+		if (mIME_Handler)
+			return mIME_Handler->updateTextEditingRegion(editElement, x, y, w, h, cursorX);
+		}
+	void onStopTextEditing (Vgui_Widget* editElement) {
+		if (mIME_Handler)
+			return mIME_Handler->onStopTextEditing(editElement);
+		}
+
 	}
 	

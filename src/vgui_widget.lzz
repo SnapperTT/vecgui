@@ -464,6 +464,35 @@ public:
 	void updateStyleCachedValues() {
 		wrangleStyle()->updateCachedValues(*this);
 		}
+		
+	Vgui_Quad getVisibleDrawDims() const {
+		// Returns the visible draw region for this object
+		// returned width/height may be negative if its cropped out
+		Vgui_Widget* W = mParent;
+		Vgui_Quad r;
+		r.x = drawX;
+		r.y = drawY;
+		r.w = drawX + drawWidth;
+		r.h = drawY + drawHeight;
+		while (W) {
+			Vgui_Quad r2;
+			r2.x = W->drawX;
+			r2.y = W->drawY;
+			r2.w = W->drawX + W->drawWidth;
+			r2.h = W->drawY + W->drawHeight;
+			
+			// intersect
+			r.x = VGUI_MAX(r.x, r2.x);
+			r.y = VGUI_MAX(r.y, r2.y);
+			r.w = VGUI_MIN(r.w, r2.w);
+			r.h = VGUI_MIN(r.h, r2.h);
+			
+			W = W->mParent;
+			}
+		r.w -= r.x;
+		r.h -= r.y;
+		return r;
+		}
 	
 	void updateCachedAbsValues() { 
 		const VGUI_COORD drawX_before = drawX;
@@ -782,9 +811,13 @@ protected:
 					setCaretPosToEnd();
 					
 				consumed = true;
+				Vgui_Quad r = getVisibleDrawDims(); 
+				Vgui_ContextI::aContext->onStartTextEditing(this, r.x, r.y, r.w, r.h, 0);
 				}
 			else if (isDown && !isInside) {
 				isActive = false; // Does not consume!
+				
+				Vgui_ContextI::aContext->onStopTextEditing(this);
 				setCaretPosToEnd();
 				}
 			}

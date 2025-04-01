@@ -1389,6 +1389,13 @@ namespace vecgui
     uintQuad (unsigned int const _first, unsigned int const _second, unsigned int const _thrid, unsigned int const _forth);
   };
 }
+struct Vgui_Quad
+{
+  VGUI_COORD x;
+  VGUI_COORD y;
+  VGUI_COORD w;
+  VGUI_COORD h;
+};
 struct Vgui_PrerenderedTextI
 {
   Vgui_PrerenderedTextI ();
@@ -1407,6 +1414,22 @@ struct Vgui_Scissor
   bool isNull () const;
   void setToNull ();
   Vgui_Scissor ();
+};
+struct IME_Handler
+{
+  Vgui_Widget * boundElement;
+  IME_Handler ();
+  virtual void onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX) = 0;
+  virtual void updateTextEditingRegion (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX) = 0;
+  virtual void onStopTextEditing (Vgui_Widget * editElement) = 0;
+};
+struct SDL_IME_Handler : public IME_Handler
+{
+  SDL_Window * mWindow;
+  SDL_IME_Handler (SDL_Window * _mWindow);
+  void onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX);
+  void updateTextEditingRegion (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX);
+  void onStopTextEditing (Vgui_Widget * editElement);
 };
 struct Vgui_TextSubWidget
 {
@@ -1460,6 +1483,7 @@ public:
   uint8_t defaultTextColourB;
   uint8_t defaultTextColourA;
   VGUI_COORD caretKerning;
+  IME_Handler * mIME_Handler;
   Vgui_ContextI ();
   virtual ~ Vgui_ContextI ();
   static void sttr_register ();
@@ -1509,6 +1533,9 @@ public:
   virtual bool processMouseEvent (VGUI_COORD mouseX, VGUI_COORD mouseY, uint8_t buttonMask, bool isDown);
   virtual bool processKeyEvent (int const keyId, bool const down, bool const up, bool const hold, bool const repeat);
   virtual bool processTextInputEvent (VGUI_STRING const & string, Vgui_TextEditEvent const evType, VGUI_STRING & textOut);
+  void onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX);
+  void updateTextEditingRegion (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX);
+  void onStopTextEditing (Vgui_Widget * editElement);
 };
 namespace vecgui
 {
@@ -1584,6 +1611,39 @@ VGUI_COORD Vgui_PrerenderedTextI::getWidth () const
                                             { return 0; }
 VGUI_COORD Vgui_PrerenderedTextI::getHeight () const
                                              { return 0; }
+IME_Handler::IME_Handler ()
+  : boundElement (NULL)
+                                           {}
+SDL_IME_Handler::SDL_IME_Handler (SDL_Window * _mWindow)
+  : IME_Handler (), mWindow (_mWindow)
+                                                                                 {}
+void SDL_IME_Handler::onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX)
+                                                                                                                                                                     {
+		if (boundElement != editElement) {
+			boundElement = editElement;
+			SDL_StartTextInput(mWindow);
+			
+			updateTextEditingRegion(editElement, x, y, w, h, cursorX);
+			}
+		}
+void SDL_IME_Handler::updateTextEditingRegion (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX)
+                                                                                                                                                                         {
+		if (editElement == boundElement) {
+			SDL_Rect r;
+			r.x = x; r.y = y; r.w = w; r.h = h;
+			if (w > 0)
+				SDL_SetTextInputArea(mWindow, &r, (int) cursorX);
+			else
+				SDL_SetTextInputArea(mWindow, NULL, 0);
+			}
+		}
+void SDL_IME_Handler::onStopTextEditing (Vgui_Widget * editElement)
+                                                          {
+		if (editElement == boundElement) {
+			SDL_StopTextInput(mWindow);
+			boundElement = NULL;
+			}
+		}
 Vgui_TextSubWidget::Vgui_TextSubWidget ()
   : text (), r (VGUI_COLOR_MAX), g (VGUI_COLOR_MAX), b (VGUI_COLOR_MAX), a (VGUI_COLOR_MAX), mTextPrerendered (NULL), isDummy (false), startsWithNewLine (false)
                                                                                                                                                                                   {}
@@ -1713,6 +1773,8 @@ Vgui_ContextI::Vgui_ContextI ()
 		defaultTextColourG = 0;
 		defaultTextColourB = 0;
 		defaultTextColourA = 255;
+		
+		mIME_Handler = NULL;
 		}
 Vgui_ContextI::~ Vgui_ContextI ()
                                  {
@@ -2029,6 +2091,22 @@ bool Vgui_ContextI::processTextInputEvent (VGUI_STRING const & string, Vgui_Text
 		if (mCanvas) return mCanvas->processTextInputEvent_recursive(string, evType, textOut);
 		return false;
 		}
+void Vgui_ContextI::onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX)
+                                                                                                                                                                     {
+		if (mIME_Handler)
+			return mIME_Handler->onStartTextEditing(editElement, x, y, w, h, cursorX);
+		}
+void Vgui_ContextI::updateTextEditingRegion (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX)
+                                                                                                                                                                          {
+		// Use this if an active text editing element is moved or resized 
+		if (mIME_Handler)
+			return mIME_Handler->updateTextEditingRegion(editElement, x, y, w, h, cursorX);
+		}
+void Vgui_ContextI::onStopTextEditing (Vgui_Widget * editElement)
+                                                          {
+		if (mIME_Handler)
+			return mIME_Handler->onStopTextEditing(editElement);
+		}
 #undef LZZ_INLINE
 #endif //VECGUI_IMPL_DOUBLE_GUARD_vgui_context
 #endif //VECGUI_IMPL_IMPL
@@ -2164,6 +2242,7 @@ public:
   Vgui_Widget * setAlignmentV (Vgui_Alignment const vt);
   Vgui_Widget * setTag (VGUI_TAG_TYPE const & _tag);
   void updateStyleCachedValues ();
+  Vgui_Quad getVisibleDrawDims () const;
   void updateCachedAbsValues ();
   Vgui_Widget * getByTag (VGUI_STRING const & searchTag);
   void markDirty ();
@@ -2617,6 +2696,35 @@ void Vgui_Widget::updateStyleCachedValues ()
                                        {
 		wrangleStyle()->updateCachedValues(*this);
 		}
+Vgui_Quad Vgui_Widget::getVisibleDrawDims () const
+                                             {
+		// Returns the visible draw region for this object
+		// returned width/height may be negative if its cropped out
+		Vgui_Widget* W = mParent;
+		Vgui_Quad r;
+		r.x = drawX;
+		r.y = drawY;
+		r.w = drawX + drawWidth;
+		r.h = drawY + drawHeight;
+		while (W) {
+			Vgui_Quad r2;
+			r2.x = W->drawX;
+			r2.y = W->drawY;
+			r2.w = W->drawX + W->drawWidth;
+			r2.h = W->drawY + W->drawHeight;
+			
+			// intersect
+			r.x = VGUI_MAX(r.x, r2.x);
+			r.y = VGUI_MAX(r.y, r2.y);
+			r.w = VGUI_MIN(r.w, r2.w);
+			r.h = VGUI_MIN(r.h, r2.h);
+			
+			W = W->mParent;
+			}
+		r.w -= r.x;
+		r.h -= r.y;
+		return r;
+		}
 void Vgui_Widget::updateCachedAbsValues ()
                                      { 
 		const VGUI_COORD drawX_before = drawX;
@@ -2921,9 +3029,13 @@ bool Vgui_Widget::textAreaBehaviour_processMouseEvent (VGUI_COORD mouseX, VGUI_C
 					setCaretPosToEnd();
 					
 				consumed = true;
+				Vgui_Quad r = getVisibleDrawDims(); 
+				Vgui_ContextI::aContext->onStartTextEditing(this, r.x, r.y, r.w, r.h, 0);
 				}
 			else if (isDown && !isInside) {
 				isActive = false; // Does not consume!
+				
+				Vgui_ContextI::aContext->onStopTextEditing(this);
 				setCaretPosToEnd();
 				}
 			}

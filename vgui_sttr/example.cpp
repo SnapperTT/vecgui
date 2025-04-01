@@ -5,7 +5,8 @@
 #ifndef LZZ_example_hh
 #define LZZ_example_hh
 #include <iostream>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
+#include <cmath>
 #include "sdl-stb-font/sdlStbFont.h"
 #define VGUI_DO_DELTA_DRAWING 1
 
@@ -89,9 +90,9 @@ int main (int argc, char * * argv)
 	int windowHeight = 400;
 
 	SDL_Init(0);
-	SDL_Window * mWindow = SDL_CreateWindow("Example Test", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowWidth, windowHeight, SDL_WINDOW_SHOWN  | SDL_WINDOW_RESIZABLE);
+	SDL_Window * mWindow = SDL_CreateWindow("Example Test", windowWidth, windowHeight, SDL_WINDOW_RESIZABLE);
 	
-	SDL_Renderer * mSdlRenderer = SDL_CreateRenderer(mWindow, SDL_RENDERER_SOFTWARE, 0);
+	SDL_Renderer * mSdlRenderer = SDL_CreateSoftwareRenderer(SDL_GetWindowSurface(mWindow));
 	
 	
 	// Create an SDL render and tell it about the renderer
@@ -257,13 +258,16 @@ for (int i = 0; i < 5; ++i) {
 	uint64_t LAST = 0;
 	uint64_t NOW = SDL_GetPerformanceCounter();
 	
-		SDL_GetRendererOutputSize(vTestContext->mRenderer, &windowWidth, &windowHeight);
+		SDL_GetCurrentRenderOutputSize(vTestContext->mRenderer, &windowWidth, &windowHeight);
 				
 			vTestContext->resizeCanvas(windowWidth/vTestContext->scalef, windowHeight/vTestContext->scalef);
 			bool isDirty = true;
 	
 	//Make a target texture to render too
 	SDL_Texture *targetTexture = NULL;
+	
+	SDL_IME_Handler mSDL_IME_Handler(mWindow);
+	vTestContext->mIME_Handler = &mSDL_IME_Handler;
 	
 	int i = 0;
 	bool programOn = true;
@@ -273,48 +277,48 @@ for (int i = 0; i < 5; ++i) {
 		while (SDL_PollEvent(&ev)) {
 			std::string textOut;
 			switch (ev.type) {
-				case SDL_MOUSEBUTTONUP:
-				case SDL_MOUSEBUTTONDOWN:
-					vTestContext->processMouseEvent(ev.button.x, ev.button.y, ev.button.button, ev.type == SDL_MOUSEBUTTONDOWN);
+				case SDL_EVENT_MOUSE_BUTTON_UP:
+				case SDL_EVENT_MOUSE_BUTTON_DOWN:
+					vTestContext->processMouseEvent(ev.button.x, ev.button.y, ev.button.button, ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN);
 					break;
-				case SDL_TEXTINPUT:
+				case SDL_EVENT_TEXT_INPUT:
 					vTestContext->processTextInputEvent(ev.text.text, Vgui_TextEditEvent::VGUI_TEXTEDIT_INSERT, textOut);
-				case SDL_KEYDOWN:
+				case SDL_EVENT_KEY_DOWN:
 					{
-						if (ev.key.keysym.sym == SDLK_BACKSPACE)
-							vTestContext->processTextInputEvent(ev.text.text, Vgui_TextEditEvent::VGUI_TEXTEDIT_BACKSPACE, textOut);
-						if (ev.key.keysym.sym == SDLK_RETURN)
+						if (ev.key.key == SDLK_BACKSPACE)
+							vTestContext->processTextInputEvent("", Vgui_TextEditEvent::VGUI_TEXTEDIT_BACKSPACE, textOut);
+						if (ev.key.key == SDLK_RETURN)
 							vTestContext->processTextInputEvent("\n", Vgui_TextEditEvent::VGUI_TEXTEDIT_INSERT, textOut);
-						if (ev.key.keysym.sym == SDLK_DELETE)
-							vTestContext->processTextInputEvent(ev.text.text, Vgui_TextEditEvent::VGUI_TEXTEDIT_DELETE, textOut);
-						if (ev.key.keysym.sym == SDLK_LEFT)
-							vTestContext->processTextInputEvent(ev.text.text, Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_LEFT, textOut);
-						if (ev.key.keysym.sym == SDLK_RIGHT)
-							vTestContext->processTextInputEvent(ev.text.text, Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_RIGHT, textOut);
-						if (ev.key.keysym.sym == SDLK_UP)
-							vTestContext->processTextInputEvent(ev.text.text, Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_UP, textOut);
-						if (ev.key.keysym.sym == SDLK_DOWN)
-							vTestContext->processTextInputEvent(ev.text.text, Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_DOWN, textOut);
-						if (ev.key.keysym.sym == SDLK_v && (ev.key.keysym.mod & KMOD_CTRL))
+						if (ev.key.key == SDLK_DELETE)
+							vTestContext->processTextInputEvent("", Vgui_TextEditEvent::VGUI_TEXTEDIT_DELETE, textOut);
+						if (ev.key.key == SDLK_LEFT)
+							vTestContext->processTextInputEvent("", Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_LEFT, textOut);
+						if (ev.key.key == SDLK_RIGHT)
+							vTestContext->processTextInputEvent("", Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_RIGHT, textOut);
+						if (ev.key.key == SDLK_UP)
+							vTestContext->processTextInputEvent("", Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_UP, textOut);
+						if (ev.key.key == SDLK_DOWN)
+							vTestContext->processTextInputEvent("", Vgui_TextEditEvent::VGUI_TEXTEDIT_CURSOR_DOWN, textOut);
+						if (ev.key.key == SDLK_V && (ev.key.mod & SDL_KMOD_CTRL))
 							vTestContext->processTextInputEvent(SDL_GetClipboardText(), Vgui_TextEditEvent::VGUI_TEXTEDIT_INSERT, textOut);
-						if (ev.key.keysym.sym == SDLK_c && (ev.key.keysym.mod & KMOD_CTRL)) {
+						if (ev.key.key == SDLK_C && (ev.key.mod & SDL_KMOD_CTRL)) {
 							vTestContext->processTextInputEvent("", Vgui_TextEditEvent::VGUI_TEXTEDIT_COPY, textOut);
 							SDL_SetClipboardText(textOut.c_str());
 							}
-						if (ev.key.keysym.sym == SDLK_x && (ev.key.keysym.mod & KMOD_CTRL)) {
+						if (ev.key.key == SDLK_X && (ev.key.mod & SDL_KMOD_CTRL)) {
 							vTestContext->processTextInputEvent("", Vgui_TextEditEvent::VGUI_TEXTEDIT_CUT, textOut);
 							SDL_SetClipboardText(textOut.c_str());
 							}
 					}
 					break;
 
-				case SDL_QUIT:
+				case SDL_EVENT_QUIT:
 					programOn = false;
 					//return 1;
 					break;
 				}
 			}
-		int mx, my;
+		float mx, my;
 		int state;
 		state = SDL_GetMouseState(&mx, &my);
 		vTestContext->pollMouseState(mx, my, state);
@@ -339,7 +343,7 @@ for (int i = 0; i < 5; ++i) {
 			const int windowWidth_old = windowWidth;
 			const int windowHeight_old = windowHeight;
 			
-			SDL_GetRendererOutputSize(vTestContext->mRenderer, &windowWidth, &windowHeight);
+			SDL_GetCurrentRenderOutputSize(vTestContext->mRenderer, &windowWidth, &windowHeight);
 			
 			if (windowWidth_old != windowWidth || windowHeight_old != windowHeight || !targetTexture) {
 				vTestContext->resizeCanvas(windowWidth/vTestContext->scalef, windowHeight/vTestContext->scalef);
@@ -384,12 +388,13 @@ for (int i = 0; i < 5; ++i) {
 		if (VGUI_DO_DELTA_DRAWING) {
 			SDL_SetRenderTarget(vTestContext->mRenderer, NULL);
 			SDL_RenderClear(vTestContext->mRenderer);
-			SDL_RenderCopy(vTestContext->mRenderer, targetTexture, NULL, NULL);
+			SDL_RenderTexture(vTestContext->mRenderer, targetTexture, NULL, NULL);
 			SDL_RenderPresent(vTestContext->mRenderer);
 			}
 		else {
 			SDL_RenderPresent(mSdlRenderer);
 			}
+		SDL_UpdateWindowSurface(mWindow);
 
 		if (true) {
 			SDL_Delay(15);

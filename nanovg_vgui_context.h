@@ -175,7 +175,7 @@ void NanoVg_Vgui_Context::clearGradient ()
 		}
 void NanoVg_Vgui_Context::clear ()
                       {
-		//SDL_RenderSetClipRect(mRenderer, NULL);
+		//SDL_SetRenderClipRect(mRenderer, NULL);
 		setColor(VGUI_COLOR_MAX,VGUI_COLOR_MAX,VGUI_COLOR_MAX,VGUI_COLOR_MAX);
 		#warning how do i do this?
 		//SDL_RenderClear(mRenderer);

@@ -10,6 +10,5 @@
 #../../tools-nondist/lzz example.lzz -hx hh && \
 #touch ../../src/vecguiWrapper.lzz
 
-g++ example.cpp -I .. -g -Wall `sdl2-config --cflags --libs` -lSDL2_ttf -lfreetype -o example && \
-./example
+g++ example.cpp -I .. -g -Wall `pkg-config --cflags --libs sdl3` -o example
 

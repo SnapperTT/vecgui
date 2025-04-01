@@ -18,6 +18,7 @@ struct SDL_Vgui_PrerenderedText : public Vgui_PrerenderedTextI
 class SDL_Vgui_Context : public Vgui_ContextI
 {
 public:
+  SDL_Window * mWindow;
   SDL_Renderer * mRenderer;
   sdl_stb_font_cache * gFont;
   uint8_t dr;
@@ -278,12 +279,12 @@ void SDL_Vgui_Context::renderTriangle (VGUI_COORD const x1, VGUI_COORD const y1,
 						SDL_SetRenderDrawColor(mRenderer, r1,g1,b1,a1); // render the whole rect in a gradiant
 					}
 				if (!gradTest) {
-					SDL_Rect r;
+					SDL_FRect r;
 					r.x = i;
 					r.y = jIn;
 					r.w = 1;
 					r.h = jOut - jIn+1;
-					SDL_RenderDrawRect(mRenderer, &r);
+					SDL_RenderRect(mRenderer, &r);
 					}
 				else {
 					// very slow! draw pixel by pixel
@@ -292,7 +293,7 @@ void SDL_Vgui_Context::renderTriangle (VGUI_COORD const x1, VGUI_COORD const y1,
 						uint8_t r1,g1,b1,a1;
 						activeGradiant.getColourAt(i,j, r1,g1,b1,a1);
 						SDL_SetRenderDrawColor(mRenderer, r1,g1,b1,a1);
-						SDL_RenderDrawPoint(mRenderer, i, j);
+						SDL_RenderPoint(mRenderer, i, j);
 						}
 					}
 				}
@@ -301,7 +302,7 @@ void SDL_Vgui_Context::renderTriangle (VGUI_COORD const x1, VGUI_COORD const y1,
 void SDL_Vgui_Context::ctx_setScissor ()
                               {
 		if (activeScissor.isNull()) {
-			SDL_RenderSetClipRect(mRenderer, NULL);
+			SDL_SetRenderClipRect(mRenderer, NULL);
 			return;
 			}
 		SDL_Rect r;
@@ -309,7 +310,7 @@ void SDL_Vgui_Context::ctx_setScissor ()
 		r.y = activeScissor.y;
 		r.w = activeScissor.w;
 		r.h = activeScissor.h;
-		SDL_RenderSetClipRect(mRenderer, &r);
+		SDL_SetRenderClipRect(mRenderer, &r);
 		}
 void SDL_Vgui_Context::setColor (VGUI_COLOR const r, VGUI_COLOR const g, VGUI_COLOR const b, VGUI_COLOR const a)
                                                                                                        {
@@ -323,7 +324,7 @@ void SDL_Vgui_Context::setColorF (float const r, float const g, float const b, f
 		}
 void SDL_Vgui_Context::clear ()
                       {
-		//SDL_RenderSetClipRect(mRenderer, NULL);
+		//SDL_SetRenderClipRect(mRenderer, NULL);
 		setColor(VGUI_COLOR_MAX,VGUI_COLOR_MAX,VGUI_COLOR_MAX,VGUI_COLOR_MAX);
 		SDL_RenderClear(mRenderer);
 		}
@@ -341,7 +342,7 @@ void SDL_Vgui_Context::renderQuadWH (VGUI_COORD const x1, VGUI_COORD const y1, V
 		int py1 = scalef * y1;
 		int w = scalef * width;
 		int h = scalef * height;
-		SDL_Rect r;
+		SDL_FRect r;
 		r.x = px1, r.y = py1, r.w = w, r.h = h;
 		
 		if (activeGradiant.isActive) {
@@ -361,19 +362,19 @@ void SDL_Vgui_Context::renderQuadWH (VGUI_COORD const x1, VGUI_COORD const y1, V
 				bool gradTest = (r1 - r2) | (g1 - g2) | (b1 - b2) | (a1 - a2); //non-zero = difference in gradient 
 				if (!gradTest) {
 					SDL_SetRenderDrawColor(mRenderer, r1,g1,b1,a1); // render the whole rect in a gradiant
-					SDL_Rect r2;
+					SDL_FRect r2;
 					r2.x = i;
 					r2.y = jIn;
 					r2.w = 1;
 					r2.h = jOut - jIn;
-					SDL_RenderDrawRect(mRenderer, &r2);
+					SDL_RenderRect(mRenderer, &r2);
 					}
 				else {
 					for (int j = jIn; j <= jOut; ++j) {
 						uint8_t r1,g1,b1,a1;
 						activeGradiant.getColourAt(i,j, r1,g1,b1,a1);
 						SDL_SetRenderDrawColor(mRenderer, r1,g1,b1,a1);
-						SDL_RenderDrawPoint(mRenderer, i, j);
+						SDL_RenderPoint(mRenderer, i, j);
 						}
 					}
 				}

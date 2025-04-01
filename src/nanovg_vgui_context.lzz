@@ -141,7 +141,7 @@ public:
 		}
 	
 	void clear () {
-		//SDL_RenderSetClipRect(mRenderer, NULL);
+		//SDL_SetRenderClipRect(mRenderer, NULL);
 		setColor(VGUI_COLOR_MAX,VGUI_COLOR_MAX,VGUI_COLOR_MAX,VGUI_COLOR_MAX);
 		#warning how do i do this?
 		//SDL_RenderClear(mRenderer);
