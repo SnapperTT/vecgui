@@ -1415,18 +1415,19 @@ struct Vgui_Scissor
   void setToNull ();
   Vgui_Scissor ();
 };
-struct IME_Handler
+struct Vgui_IME_Handler
 {
   Vgui_Widget * boundElement;
-  IME_Handler ();
+  static Vgui_Widget * const EXTERNALY_BOUND;
+  Vgui_IME_Handler ();
   virtual void onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX) = 0;
   virtual void updateTextEditingRegion (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX) = 0;
   virtual void onStopTextEditing (Vgui_Widget * editElement) = 0;
 };
-struct SDL_IME_Handler : public IME_Handler
+struct SDL_Vgui_IME_Handler : public Vgui_IME_Handler
 {
   SDL_Window * mWindow;
-  SDL_IME_Handler (SDL_Window * _mWindow);
+  SDL_Vgui_IME_Handler (SDL_Window * _mWindow);
   void onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX);
   void updateTextEditingRegion (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX);
   void onStopTextEditing (Vgui_Widget * editElement);
@@ -1483,7 +1484,7 @@ public:
   uint8_t defaultTextColourB;
   uint8_t defaultTextColourA;
   VGUI_COORD caretKerning;
-  IME_Handler * mIME_Handler;
+  Vgui_IME_Handler * mIME_Handler;
   Vgui_ContextI ();
   virtual ~ Vgui_ContextI ();
   static void sttr_register ();
@@ -1611,13 +1612,14 @@ VGUI_COORD Vgui_PrerenderedTextI::getWidth () const
                                             { return 0; }
 VGUI_COORD Vgui_PrerenderedTextI::getHeight () const
                                              { return 0; }
-IME_Handler::IME_Handler ()
+Vgui_Widget * const Vgui_IME_Handler::EXTERNALY_BOUND = (Vgui_Widget*) 0x1;
+Vgui_IME_Handler::Vgui_IME_Handler ()
   : boundElement (NULL)
-                                           {}
-SDL_IME_Handler::SDL_IME_Handler (SDL_Window * _mWindow)
-  : IME_Handler (), mWindow (_mWindow)
-                                                                                 {}
-void SDL_IME_Handler::onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX)
+                                                {}
+SDL_Vgui_IME_Handler::SDL_Vgui_IME_Handler (SDL_Window * _mWindow)
+  : Vgui_IME_Handler (), mWindow (_mWindow)
+                                                                                           {}
+void SDL_Vgui_IME_Handler::onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX)
                                                                                                                                                                      {
 		if (boundElement != editElement) {
 			boundElement = editElement;
@@ -1626,7 +1628,7 @@ void SDL_IME_Handler::onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD 
 			updateTextEditingRegion(editElement, x, y, w, h, cursorX);
 			}
 		}
-void SDL_IME_Handler::updateTextEditingRegion (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX)
+void SDL_Vgui_IME_Handler::updateTextEditingRegion (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX)
                                                                                                                                                                          {
 		if (editElement == boundElement) {
 			SDL_Rect r;
@@ -1637,7 +1639,7 @@ void SDL_IME_Handler::updateTextEditingRegion (Vgui_Widget * editElement, VGUI_C
 				SDL_SetTextInputArea(mWindow, NULL, 0);
 			}
 		}
-void SDL_IME_Handler::onStopTextEditing (Vgui_Widget * editElement)
+void SDL_Vgui_IME_Handler::onStopTextEditing (Vgui_Widget * editElement)
                                                           {
 		if (editElement == boundElement) {
 			SDL_StopTextInput(mWindow);

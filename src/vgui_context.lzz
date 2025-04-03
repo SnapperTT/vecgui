@@ -44,18 +44,20 @@ struct Vgui_Scissor {
 	inline Vgui_Scissor() { setToNull(); }
 	};
 
-struct IME_Handler {
-	Vgui_Widget * boundElement;
-	IME_Handler() : boundElement(NULL) {}
+struct Vgui_IME_Handler {
+	Vgui_Widget * boundElement; // pointer isn't owned. Its a tag to prevent double activating/double disabling SDL_TextInput on the same element
+	static Vgui_Widget* const EXTERNALY_BOUND = (Vgui_Widget*) 0x1; //use this to bind to *something* that isn't an element. Null checking boundElement should also check against this
+	
+	Vgui_IME_Handler() : boundElement(NULL) {}
 	virtual void onStartTextEditing (Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) = 0;
 	virtual void updateTextEditingRegion (Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) = 0;
 	virtual void onStopTextEditing (Vgui_Widget* editElement) = 0;
 	};
 
-struct SDL_IME_Handler : public IME_Handler {
+struct SDL_Vgui_IME_Handler : public Vgui_IME_Handler {
 	SDL_Window * mWindow;
 	
-	SDL_IME_Handler(SDL_Window* _mWindow) : IME_Handler(), mWindow(_mWindow) {}
+	SDL_Vgui_IME_Handler(SDL_Window* _mWindow) : Vgui_IME_Handler(), mWindow(_mWindow) {}
 	
 	void onStartTextEditing (Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) {
 		if (boundElement != editElement) {
@@ -253,7 +255,7 @@ public:
 	VGUI_COORD caretKerning;
 	
 	// Callbacks
-	IME_Handler* mIME_Handler; // Used to handle 
+	Vgui_IME_Handler* mIME_Handler; // Used to handle 
 	
 	Vgui_ContextI()
 		: mCanvas(NULL), mSkin(NULL), canvasXSz(100), canvasYSz(100), scalef(1.0f), redrawRq(true), caretKerning(0) { 
