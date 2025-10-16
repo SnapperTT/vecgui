@@ -1420,6 +1420,7 @@ struct Vgui_IME_Handler
   Vgui_Widget * boundElement;
   static Vgui_Widget * const EXTERNALY_BOUND;
   Vgui_IME_Handler ();
+  virtual ~ Vgui_IME_Handler ();
   virtual void onStartTextEditing (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX) = 0;
   virtual void updateTextEditingRegion (Vgui_Widget * editElement, VGUI_COORD const x, VGUI_COORD const y, VGUI_COORD const w, VGUI_COORD const h, VGUI_COORD const cursorX) = 0;
   virtual void onStopTextEditing (Vgui_Widget * editElement) = 0;
@@ -1610,6 +1611,8 @@ Vgui_Widget * const Vgui_IME_Handler::EXTERNALY_BOUND = (Vgui_Widget*) 0x1;
 Vgui_IME_Handler::Vgui_IME_Handler ()
   : boundElement (NULL)
                                                 {}
+Vgui_IME_Handler::~ Vgui_IME_Handler ()
+                                    {}
 SDL_Vgui_IME_Handler::SDL_Vgui_IME_Handler (SDL_Window * _mWindow)
   : Vgui_IME_Handler (), mWindow (_mWindow)
                                                                                            {}

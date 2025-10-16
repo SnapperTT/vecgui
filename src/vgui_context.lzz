@@ -49,6 +49,7 @@ struct Vgui_IME_Handler {
 	static Vgui_Widget* const EXTERNALY_BOUND = (Vgui_Widget*) 0x1; //use this to bind to *something* that isn't an element. Null checking boundElement should also check against this
 	
 	Vgui_IME_Handler() : boundElement(NULL) {}
+	virtual ~Vgui_IME_Handler() {}
 	virtual void onStartTextEditing (Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) = 0;
 	virtual void updateTextEditingRegion (Vgui_Widget* editElement, const VGUI_COORD x, const VGUI_COORD y, const VGUI_COORD w, const VGUI_COORD h, const VGUI_COORD cursorX) = 0;
 	virtual void onStopTextEditing (Vgui_Widget* editElement) = 0;
