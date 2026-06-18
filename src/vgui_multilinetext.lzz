@@ -340,9 +340,9 @@ public:
 	static void sttr_register() {
 		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
 		R.deriveClass<Vgui_Widget,Vgui_MultilineText>("Vgui_MultilineText")
-			.STTR_REG(Vgui_MultilineText,addLine)
-			.STTR_REG(Vgui_MultilineText,upcast)
-			.STTR_REG(Vgui_MultilineText,upcastC)
+			.STTR_REG_METHN(Vgui_MultilineText,addLine,0)
+			.STTR_REG_METHN(Vgui_MultilineText,upcast,0)
+			.STTR_REG_METHN(Vgui_MultilineText,upcastC,0)
 		.endClass();
 		//std::cout << "sttr_register Vgui_MultilineText" <<  std::endl;
 		//exit(1);

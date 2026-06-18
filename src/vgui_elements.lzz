@@ -20,8 +20,8 @@ public:
 	static void sttr_register() {
 		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
 		R.deriveClass<Vgui_Widget,Vgui_Frame>("Vgui_Frame")
-			.STTR_REG(Vgui_Frame,upcast)
-			.STTR_REG(Vgui_Frame,upcastC)
+			.STTR_REG_METHN(Vgui_Frame,upcast,0)
+			.STTR_REG_METHN(Vgui_Frame,upcastC,0)
 		.endClass();
 		}
 	STTR_CLASS_SIG(Vgui_Frame)
@@ -72,8 +72,8 @@ public:
 	static void sttr_register() {
 		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
 		R.deriveClass<Vgui_Widget,Vgui_Button>("Vgui_Button")
-			.STTR_REG(Vgui_Button,upcast)
-			.STTR_REG(Vgui_Button,upcastC)
+			.STTR_REG_METHN(Vgui_Button,upcast,0)
+			.STTR_REG_METHN(Vgui_Button,upcastC,0)
 		.endClass();
 		}
 	STTR_CLASS_SIG(Vgui_Button)
@@ -124,8 +124,8 @@ public:
 	static void sttr_register() {
 		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
 		R.deriveClass<Vgui_Widget,Vgui_Text>("Vgui_Text")
-			.STTR_REG(Vgui_Text,upcast)
-			.STTR_REG(Vgui_Text,upcastC)
+			.STTR_REG_METHN(Vgui_Text,upcast,0)
+			.STTR_REG_METHN(Vgui_Text,upcastC,0)
 		.endClass();
 		}
 	STTR_CLASS_SIG(Vgui_Text)
@@ -165,8 +165,8 @@ public:
 	static void sttr_register() {
 		sttr::RegNamespace & R = *sttr::getGlobalNamespace();
 		R.deriveClass<Vgui_Widget,Vgui_TextEdit>("Vgui_TextEdit")
-			.STTR_REG(Vgui_TextEdit,upcast)
-			.STTR_REG(Vgui_TextEdit,upcastC)
+			.STTR_REG_METHN(Vgui_TextEdit,upcast,0)
+			.STTR_REG_METHN(Vgui_TextEdit,upcastC,0)
 		.endClass();
 		}
 	STTR_CLASS_SIG(Vgui_TextEdit)
